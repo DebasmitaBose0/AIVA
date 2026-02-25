@@ -58,7 +58,9 @@ All endpoints require the `x-api-key` header against the value in `.env`.
 Development mode skips the check for convenience.
 
 > Frontend `/api/voice` is now a proxy to the backend server; set
+
 * voice menu populates from the browser's SpeechSynthesis API, filtering for English and Indian languages. Use the language shortcuts to quickly jump to a regional voice, or scroll through grouped voices to choose a specific accent.
+
 > `BACKEND_URL` environment variable if running the backend elsewhere.
 
 ## 🧠 Philosophy
