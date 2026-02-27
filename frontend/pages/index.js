@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import Head from "next/head";
 import JarvisLoader from "../components/JarvisLoader";
+import {
+  Mic, MicOff, Bot, User, Copy, Trash2, Clock, Calendar,
+  CloudSun, Laugh, HelpCircle, Volume2, Globe, Cpu, Zap,
+  MessageSquare, Activity, Shield, Radio, Send
+} from "lucide-react";
 
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
 
@@ -8,442 +13,297 @@ export default function Home() {
   const [status, setStatus] = useState("System Offline");
   const [lastCommand, setLastCommand] = useState("");
   const [response, setResponse] = useState("");
-  const [chatHistory, setChatHistory] = useState([]); // Chat history state (objects with type,text,time)
+  const [chatHistory, setChatHistory] = useState([]);
   const [isListening, setIsListening] = useState(false);
   const [recognition, setRecognition] = useState(null);
   const [isSupported, setIsSupported] = useState(true);
   const [voices, setVoices] = useState([]);
   const [selectedVoice, setSelectedVoice] = useState(null);
-  const [missingLangs, setMissingLangs] = useState([]); // languages with no voice found
+  const [missingLangs, setMissingLangs] = useState([]);
   const [systemStarted, setSystemStarted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [showHud, setShowHud] = useState(false); // control HUD visibility
-  
-  // Mapping of language codes to display names (for dropdown and logging)
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [isTextMode, setIsTextMode] = useState(false);
+  const [textInput, setTextInput] = useState("");
+
   const languageNames = {
-    hi: 'Hindi',
-    bn: 'Bengali',
-    ta: 'Tamil',
-    te: 'Telugu',
-    mr: 'Marathi',
-    gu: 'Gujarati',
-    kn: 'Kannada',
-    ml: 'Malayalam',
-    pa: 'Punjabi',
-    en: 'English',
-    // add more as needed
+    hi: 'Hindi', bn: 'Bengali', ta: 'Tamil', te: 'Telugu',
+    mr: 'Marathi', gu: 'Gujarati', kn: 'Kannada', ml: 'Malayalam',
+    pa: 'Punjabi', en: 'English', or: 'Odia', as: 'Assamese',
+    ur: 'Urdu', ne: 'Nepali', sa: 'Sanskrit', ks: 'Kashmiri', sd: 'Sindhi'
   };
 
-  // Ref to keep track of the selected voice in callbacks/closures
   const voiceRef = useRef(null);
-  const voicesRef = useRef([]); // Ref for voices list
+  const voicesRef = useRef([]);
+  const recognitionRef = useRef(null);
+  const silenceTimerRef = useRef(null);
+  const transcriptRef = useRef("");
 
-  // scroll chat to bottom on update
+  // Scroll chat to bottom
   useEffect(() => {
     const el = document.getElementById('chat-end');
     if (el) el.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory]);
 
-  // copy chat contents
   const copyChat = () => {
     if (chatHistory.length === 0) return;
-    const text = chatHistory.map(m => `[${m.time}] ${m.type==='user'?'You':'AIVA'}: ${m.text}`).join('\n');
+    const text = chatHistory.map(m => `[${m.time}] ${m.type === 'user' ? 'You' : 'AIVA'}: ${m.text}`).join('\n');
     navigator.clipboard.writeText(text).then(() => {
-      setStatus('Chat copied to clipboard');
-      speakResponse('Chat copied to clipboard.');
-      setTimeout(() => setStatus('System Online'), 3000);
-    }).catch(err => {
-      console.error('Copy failed', err);
-      setStatus('Copy failed');
-      speakResponse('Unable to copy chat.');
-    });
+      setStatus('Copied');
+      setTimeout(() => setStatus('System Online'), 2000);
+    }).catch(() => { });
   };
 
-  // clear chat history
   const clearChat = () => {
     setChatHistory([]);
     setResponse('');
-    setStatus('Chat cleared');
-    speakResponse('Chat history cleared.');
-    setTimeout(() => setStatus('System Online'), 3000);
+    setStatus('Cleared');
+    setTimeout(() => setStatus('System Online'), 2000);
   };
 
-  // show history alert (simple)
-  const showHistory = () => {
-    if (chatHistory.length === 0) {
-      alert('No history available');
-      return;
-    }
-    const text = chatHistory.map(m => `[${m.time}] ${m.type==='user'?'You':'AIVA'}: ${m.text}`).join('\n');
-    alert(text);
-  };
-
-  // helper to add a message with timestamp
+  // Add message — strict dedup
   const addMessage = (type, text) => {
     const time = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
     setChatHistory(prev => {
       const last = prev[prev.length - 1];
-      if (last && last.type === type && last.text === text) {
-        // avoid duplicate consecutive message
-        return prev;
-      }
+      if (last && last.type === type && last.text === text) return prev;
       return [...prev, { type, text, time }];
     });
     if (type === 'bot') setResponse(text);
   };
 
-  // if the first message is clipped by the panel (due to margin/HUD), drop it
-  useEffect(() => {
-    const container = document.querySelector('.glass-panel');
-    if (!container) return;
-    const msgs = container.getElementsByClassName('chat-msg');
-    if (msgs.length > 0) {
-      const first = msgs[0];
-      const contRect = container.getBoundingClientRect();
-      const firstRect = first.getBoundingClientRect();
-      if (firstRect.bottom < contRect.top + 2) {
-        // message is completely above the visible top; remove it
-        setChatHistory(prev => prev.slice(1));
-      }
-    }
-  }, [chatHistory]);
-
-  // Sync ref with state
-  useEffect(() => {
-    voicesRef.current = voices;
-  }, [voices]);
-
-  // Sync ref with state and update recognition language
+  useEffect(() => { voicesRef.current = voices; }, [voices]);
   useEffect(() => {
     voiceRef.current = selectedVoice;
-    if (recognition && selectedVoice) {
-      // Map voice language to recognition language if needed, or use directly
-      // Most voices have a lang property like 'en-US', 'hi-IN', etc.
-      console.log("Setting recognition language to:", selectedVoice.lang);
-      recognition.lang = selectedVoice.lang;
+    if (recognitionRef.current && selectedVoice) {
+      recognitionRef.current.lang = selectedVoice.lang;
     }
-  }, [selectedVoice, recognition]);
+  }, [selectedVoice]);
 
-  // 🎙️ Setup Speech Recognition & Voices
+  // Setup Speech Recognition & Voices
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      // Load Voices
-      const loadVoices = () => {
-        const availableVoices = window.speechSynthesis.getVoices();
-        console.log("Voices loaded:", availableVoices.length);
-        
-        // Filter: Keep only English and the Indian languages we support
-        const filteredVoices = availableVoices.filter(voice => {
-            const lang = voice.lang.toLowerCase();
-            // keep if it's english or starts with one of our indian codes
-            return lang.startsWith('en') ||
-                   lang.startsWith('hi') ||
-                   lang.startsWith('bn') ||
-                   lang.startsWith('ta') ||
-                   lang.startsWith('te') ||
-                   lang.startsWith('mr') ||
-                   lang.startsWith('gu') ||
-                   lang.startsWith('kn') ||
-                   lang.startsWith('ml') ||
-                   lang.startsWith('pa') ||
-                   lang.includes('in');   // generic indian region fallback
-        });
+    if (typeof window === "undefined") return;
 
-        // Sort: Prioritize Indian accents/languages, then other English
-        const sortedVoices = filteredVoices.sort((a, b) => {
-            const aIsIndian = a.lang.toLowerCase().includes('in');
-            const bIsIndian = b.lang.toLowerCase().includes('in');
-            if (aIsIndian && !bIsIndian) return -1;
-            if (!aIsIndian && bIsIndian) return 1;
-            return 0;
-        });
+    const loadVoices = () => {
+      const all = window.speechSynthesis.getVoices();
+      const filtered = all.filter(v => {
+        const l = v.lang.toLowerCase();
+        return l.startsWith('en') || l.startsWith('hi') || l.startsWith('bn') ||
+          l.startsWith('ta') || l.startsWith('te') || l.startsWith('mr') ||
+          l.startsWith('gu') || l.startsWith('kn') || l.startsWith('ml') ||
+          l.startsWith('pa') || l.startsWith('or') || l.startsWith('as') ||
+          l.startsWith('ur') || l.startsWith('ne') || l.startsWith('sa') ||
+          l.startsWith('ks') || l.startsWith('sd') || l.includes('in');
+      });
 
-        setVoices(sortedVoices);
-        
-        // Determine which of our target Indian language codes are missing a voice
-        const indianCodes = ['hi','bn','ta','te','mr','gu','kn','ml','pa'];
-        const missing = [];
-        indianCodes.forEach(code => {
-            const found = sortedVoices.some(v =>
-                v.lang.toLowerCase().startsWith(code) && v.lang.toLowerCase().includes('in')
-            );
-            if (!found) {
-                console.warn(`No ${languageNames[code] || code} voice with Indian accent found.`);
-                missing.push(languageNames[code] || code);
-            }
-        });
-        setMissingLangs(missing);
+      const sorted = filtered.sort((a, b) => {
+        const ai = a.lang.toLowerCase().includes('in');
+        const bi = b.lang.toLowerCase().includes('in');
+        if (ai && !bi) return -1;
+        if (!ai && bi) return 1;
+        return 0;
+      });
 
-        // Check if any Indian voices were found at all
-        const hasAnyIndian = sortedVoices.some(v => v.lang.toLowerCase().includes('in'));
-        if (!hasAnyIndian && availableVoices.length > 0) {
-            console.warn("No Indian voices found. Please install language packs in your OS settings.");
-        }
-        
-        // Try to find a good "JARVIS" or "AI" voice (Prioritize Indian English if available)
-        const preferredVoice = sortedVoices.find(v => 
-          v.name.includes("Google US English") || 
-          v.name.includes("Microsoft Zira") || 
-          v.name.includes("Samantha")
-        ) || sortedVoices[0];
-        
-        if (preferredVoice) {
-          console.log("Selected voice:", preferredVoice.name);
-          setSelectedVoice(preferredVoice);
-        }
+      setVoices(sorted);
+
+      const codes = Object.keys(languageNames).filter(c => c !== 'en');
+      const missing = codes.filter(c =>
+        !sorted.some(v => v.lang.toLowerCase().startsWith(c) && v.lang.toLowerCase().includes('in'))
+      ).map(c => languageNames[c] || c);
+      setMissingLangs(missing);
+
+      const pref = sorted.find(v =>
+        v.name.includes("Google US English") || v.name.includes("Microsoft Zira") || v.name.includes("Samantha")
+      ) || sorted[0];
+      if (pref) setSelectedVoice(pref);
+    };
+
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+
+    if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const rec = new SpeechRec();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = "en-US";
+
+      rec.onstart = () => {
+        setIsListening(true);
+        setStatus("Listening...");
+        setLiveTranscript("");
+        transcriptRef.current = "";
       };
 
-      loadVoices();
-      window.speechSynthesis.onvoiceschanged = loadVoices;
+      rec.onresult = (event) => {
+        let finalTrans = '';
+        let interimTrans = '';
+        for (let i = 0; i < event.results.length; i++) {
+          if (event.results[i].isFinal) finalTrans += event.results[i][0].transcript;
+          else interimTrans += event.results[i][0].transcript;
+        }
+        const text = (finalTrans + interimTrans).trim();
+        setLiveTranscript(text);
+        transcriptRef.current = text;
 
-      // Setup Recognition
-      if ("webkitSpeechRecognition" in window) {
-        const rec = new window.webkitSpeechRecognition();
-        rec.continuous = false;
-        rec.interimResults = false;
-        rec.lang = "en-US";
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = setTimeout(() => {
+          rec.stop();
+        }, 2500); // 2.5 seconds of silence = user is done
+      };
 
-        rec.onstart = () => {
-          console.log("Recognition started");
-          setIsListening(true);
-          setStatus("Listening...");
-        };
-
-        rec.onresult = (event) => {
-          const command = event.results[0][0].transcript;
-          console.log("Command received:", command);
-          setLastCommand(command);
-          setResponse(""); // Clear previous response
+      rec.onend = () => {
+        setIsListening(false);
+        const cmd = transcriptRef.current;
+        if (cmd) {
+          setLastCommand(cmd);
           setStatus("Processing...");
-          processCommand(command);
-        };
+          setIsProcessing(true);
+          processCommand(cmd);
+        }
+        setLiveTranscript("");
+        transcriptRef.current = "";
+      };
 
-        rec.onend = () => {
-          console.log("Recognition ended");
-            setIsListening(false);
-        };
+      rec.onerror = () => {
+        setStatus("System Online");
+        setIsListening(false);
+      };
 
-        rec.onerror = (event) => {
-          console.error("Speech recognition error", event.error);
-          setStatus("System Online");
-          setIsListening(false);
-        };
-
-        setRecognition(rec);
-      } else {
-        setIsSupported(false);
-        setStatus("Voice Input Not Supported");
-      }
+      recognitionRef.current = rec;
+      setRecognition(rec);
+    } else {
+      setIsSupported(false);
+      setStatus("Voice Not Supported");
     }
+
+    // Stop speaking if the user refreshes or closes the page
+    const handleBeforeUnload = () => window.speechSynthesis.cancel();
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.speechSynthesis.cancel();
+    };
   }, []);
 
-  // 🚀 Initialize System
   const initializeSystem = () => {
     setSystemStarted(true);
     setStatus("System Online");
-    // Force a voice load check
-    const availableVoices = window.speechSynthesis.getVoices();
-    if (availableVoices.length > 0 && !selectedVoice) {
-       setSelectedVoice(availableVoices[0]);
-    }
-    speakResponse("Hi there! I am AIVA, made by Debasmita. How can I assist you?");
+    const all = window.speechSynthesis.getVoices();
+    if (all.length > 0 && !selectedVoice) setSelectedVoice(all[0]);
+    speakResponse("Hi! I am AIVA, made by Debasmita and Babin. How can I assist you?");
+    addMessage('bot', "Hi! I'm AIVA — your AI voice assistant. Tap the mic or try a suggestion below to get started.");
   };
 
-  // Audio Context Ref
+  // Audio
   const audioContextRef = useRef(null);
-  const analyserRef = useRef(null);
-  const dataArrayRef = useRef(null);
-  const sourceRef = useRef(null);
-  const [volume, setVolume] = useState(0);
 
-  // Initialize Audio Context
   const initAudio = async () => {
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-      analyserRef.current = audioContextRef.current.createAnalyser();
-      analyserRef.current.fftSize = 256;
-      const bufferLength = analyserRef.current.frequencyBinCount;
-      dataArrayRef.current = new Uint8Array(bufferLength);
     }
   };
 
-  // Play UI Sound
   const playSound = (type) => {
     if (!audioContextRef.current) return;
     const osc = audioContextRef.current.createOscillator();
     const gain = audioContextRef.current.createGain();
     osc.connect(gain);
     gain.connect(audioContextRef.current.destination);
-
+    const t = audioContextRef.current.currentTime;
     if (type === 'start') {
-      osc.frequency.setValueAtTime(440, audioContextRef.current.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(880, audioContextRef.current.currentTime + 0.1);
-      gain.gain.setValueAtTime(0.1, audioContextRef.current.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.1);
-      osc.start();
-      osc.stop(audioContextRef.current.currentTime + 0.1);
-    } else if (type === 'end') {
-      osc.frequency.setValueAtTime(880, audioContextRef.current.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(440, audioContextRef.current.currentTime + 0.1);
-      gain.gain.setValueAtTime(0.1, audioContextRef.current.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.1);
-      osc.start();
-      osc.stop(audioContextRef.current.currentTime + 0.1);
+      osc.frequency.setValueAtTime(440, t);
+      osc.frequency.exponentialRampToValueAtTime(880, t + 0.1);
+    } else {
+      osc.frequency.setValueAtTime(880, t);
+      osc.frequency.exponentialRampToValueAtTime(440, t + 0.1);
     }
+    gain.gain.setValueAtTime(0.08, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    osc.start(); osc.stop(t + 0.1);
   };
 
-  // ▶ Start Listening
-  const startListening = async () => {
+  // Toggle mic — one button to start/stop
+  const toggleMic = async () => {
+    if (isListening) {
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      // Let onend handle the submission if transcript exists
+      return;
+    }
     await initAudio();
     playSound('start');
-
-    // give user a visible cue before recording begins
-    setStatus("Ready to speak with AIVA");
-    addMessage('bot', 'Ready to speak with AIVA');
-
-    if (recognition) {
-      try {
-        recognition.start();
-        
-        // Start Audio Visualizer
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            sourceRef.current = audioContextRef.current.createMediaStreamSource(stream);
-            sourceRef.current.connect(analyserRef.current);
-            updateVolume();
-        } catch (err) {
-            console.error("Error accessing microphone for visualizer:", err);
-        }
-
-      } catch (e) {
-        console.error("Start error:", e);
-      }
+    setStatus("Listening...");
+    try {
+      recognitionRef.current?.start();
+    } catch (e) {
+      console.error("Mic start error:", e);
     }
   };
 
-  const updateVolume = () => {
-    if (!analyserRef.current || !isListening) return;
-    analyserRef.current.getByteFrequencyData(dataArrayRef.current);
-    const avg = dataArrayRef.current.reduce((a, b) => a + b) / dataArrayRef.current.length;
-    setVolume(avg);
-    if (isListening) {
-        requestAnimationFrame(updateVolume);
-    }
-  };
-
-  // Stop Visualizer when listening stops
-  useEffect(() => {
-      if (!isListening) {
-          if (sourceRef.current) {
-              // sourceRef.current.disconnect(); // Optional: disconnect if needed
-          }
-          setVolume(0);
-          if (audioContextRef.current && audioContextRef.current.state === 'running') {
-             playSound('end');
-          }
-      } else {
-          if (analyserRef.current) {
-              updateVolume();
-          }
-      }
-  }, [isListening]);
-
-  // track last user command to avoid accidental duplicates from speech API
+  // Dedup guard
   const lastUserCommand = useRef('');
   const lastUserTime = useRef(0);
 
-  // 🌐 Send command to backend
   const processCommand = async (command) => {
-    // guard against repeated recognition events
     const now = Date.now();
-    if (command === lastUserCommand.current && now - lastUserTime.current < 1000) {
-      console.log('ignoring duplicate command', command);
-      return;
-    }
+    if (command === lastUserCommand.current && now - lastUserTime.current < 1500) return;
     lastUserCommand.current = command;
     lastUserTime.current = now;
 
-    // immediately record user message to avoid lost input
     addMessage('user', command);
 
-    const lowerCmd = command.toLowerCase();
-    // handle local time/date queries on client side
-    const lower = lowerCmd;
-    if (lower.match(/what.*time/) || lower.includes('current time') || lower.match(/time now/) || lower.match(/what is the time/)) {
-      const localTime = new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: 'numeric', hour12: true });
-      const msg = `It is ${localTime}.`;
-      setResponse(msg);
-      addMessage('bot', msg);
-      speakResponse(msg);
-      setStatus("Response Ready");
-      setTimeout(() => setStatus("System Online"), 3000);
+    const lower = command.toLowerCase();
+
+    // Mode Switching
+    if (lower.includes('enable type mode') || lower.includes('open type mode') || lower.includes('enable text mode') || lower.includes('open text mode') || lower.includes('type mode') || lower.includes('text mode')) {
+      setIsTextMode(true);
+      finishResponse("Text mode enabled. You can now type your commands.");
       return;
     }
+    if (lower.includes('enable voice mode') || lower.includes('open voice mode') || lower.includes('enable speak mode') || lower.includes('open speak mode') || lower.includes('voice mode') || lower.includes('speak mode')) {
+      setIsTextMode(false);
+      finishResponse("Voice mode enabled. I am listening.");
+      return;
+    }
+
+    // Client-side time
+    if (lower.match(/what.*time/) || lower.includes('current time') || lower.match(/time now/)) {
+      const t = new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: 'numeric', hour12: true });
+      const msg = `It is ${t}.`;
+      finishResponse(msg);
+      return;
+    }
+    // Client-side date
     if (lower.match(/what.*date/) || lower.match(/what.*day/) || lower.includes('current date')) {
-      const localDate = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-      const msg = `Today is ${localDate}.`;
-      setResponse(msg);
-      addMessage('bot', msg);
-      speakResponse(msg);
-      setStatus("Response Ready");
-      setTimeout(() => setStatus("System Online"), 3000);
+      const d = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      finishResponse(`Today is ${d}.`);
       return;
     }
 
-    if (lowerCmd.includes('latest news') || lowerCmd.match(/news about (.+)/)) {
-        const topic = lowerCmd.match(/news about (.+)/)[1];
-        const r = await fetch(`https://newsapi.org/v2/everything?q=${encodeURIComponent(topic)}&apiKey=${NEWS_KEY}`);
-        const json = await r.json();
-        if (json.articles && json.articles.length) {
-            const msg = json.articles[0].title + ' — ' + json.articles[0].description;
-            addMessage('bot', msg);
-            return msg;
-        }
-        const noMsg = 'No recent news found on ' + topic;
-        addMessage('bot', noMsg);
-        return noMsg;
-    }
-
+    // Send to backend
     try {
-      console.log("Sending to backend...", command);
       const res = await fetch("/api/voice", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": API_KEY
-        },
+        headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
         body: JSON.stringify({ command })
       });
-
       let data;
-      try {
-        data = await res.json();
-      } catch (e) {
-        console.error("Failed to parse JSON from backend", e);
-        data = null;
-      }
-      console.log("Backend returned status", res.status, "data", data);
+      try { data = await res.json(); } catch { data = null; }
 
       if (res.ok && data) {
-        // Handle Actions
+        // Voice change action
         if (data.action === 'CHANGE_VOICE' && data.voiceName) {
-            const targetName = data.voiceName.toLowerCase();
-            const availableVoices = voicesRef.current;
-            const foundVoice = availableVoices.find(v => v.name.toLowerCase().includes(targetName));
-            
-            if (foundVoice) {
-                setSelectedVoice(foundVoice);
-                voiceRef.current = foundVoice; // Update ref immediately
-                console.log(`Voice changed to: ${foundVoice.name}`);
-            } else {
-                // If voice not found, append a note to the response
-                data.response += ` (Note: I couldn't find a voice named \"${data.voiceName}\" on this device.)`;
-            }
+          const found = voicesRef.current.find(v => v.name.toLowerCase().includes(data.voiceName.toLowerCase()));
+          if (found) { setSelectedVoice(found); voiceRef.current = found; }
+          else { data.response += ` (Voice "${data.voiceName}" not found.)`; }
         }
 
-        // auto‑select voice based on response script/language
+        // Auto-detect language
         const detectLang = (text) => {
-          // use Unicode script property; requires `u` flag
           if (/\p{Script=Devanagari}/u.test(text)) return 'hi';
           if (/\p{Script=Bengali}/u.test(text)) return 'bn';
           if (/\p{Script=Tamil}/u.test(text)) return 'ta';
@@ -454,304 +314,293 @@ export default function Home() {
           if (/\p{Script=Gurmukhi}/u.test(text)) return 'pa';
           return null;
         };
-        const langCode = detectLang(data.response);
-        if (langCode) {
-          // prefer a voice that matches the language and has Indian region accent
-          let matchVoice = voices.find(v =>
-            v.lang.toLowerCase().startsWith(langCode) && v.lang.toLowerCase().includes('in')
-          );
-          if (!matchVoice) {
-            matchVoice = voices.find(v => v.lang.toLowerCase().startsWith(langCode));
-          }
-          if (matchVoice && matchVoice.name !== selectedVoice?.name) {
-            setSelectedVoice(matchVoice);
-            voiceRef.current = matchVoice;
-          }
+        const lc = detectLang(data.response);
+        if (lc) {
+          let mv = voices.find(v => v.lang.toLowerCase().startsWith(lc) && v.lang.toLowerCase().includes('in'))
+            || voices.find(v => v.lang.toLowerCase().startsWith(lc));
+          if (mv && mv.name !== selectedVoice?.name) { setSelectedVoice(mv); voiceRef.current = mv; }
         }
 
-        setResponse(data.response);
-        addMessage('bot', data.response);
-        setStatus("Response Ready");
-        speakResponse(data.response);
-        setTimeout(() => setStatus("System Online"), 3000);
+        finishResponse(data.response);
       } else {
-        console.warn("Non-OK response from backend", res.status, data);
-        handleError("Error processing command");
+        finishResponse("Error processing command.");
       }
     } catch (error) {
       console.error("Fetch error:", error);
-      handleError("Network error");
+      finishResponse("Network error. Please check your connection.");
     }
   };
 
-  // 🔊 Speak response
+  // Unified response handler
+  const finishResponse = (text) => {
+    setResponse(text);
+    addMessage('bot', text);
+    speakResponse(text);
+    setStatus("System Online");
+    setIsProcessing(false);
+    playSound('end');
+  };
+
+  const sendQuickCommand = (cmd) => {
+    if (isProcessing) return;
+    setLastCommand(cmd);
+    setStatus("Processing...");
+    setIsProcessing(true);
+    processCommand(cmd);
+  };
+
   const speakResponse = (text) => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      console.log("Speaking:", text);
-      window.speechSynthesis.cancel(); // Stop previous speech
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const v = voiceRef.current;
+    if (v) u.voice = v;
+    else {
+      const all = window.speechSynthesis.getVoices();
+      if (all.length > 0) u.voice = all[0];
+    }
+    u.rate = 1.0; u.pitch = 1.0;
+    window.speechSynthesis.speak(u);
+  };
 
-      const utterance = new SpeechSynthesisUtterance(text);
-      
-      // Use the ref to get the current selected voice, even inside stale closures
-      const currentVoice = voiceRef.current;
-
-      if (currentVoice) {
-        utterance.voice = currentVoice;
-      } else {
-        // Fallback: try to get voices again
-        const voices = window.speechSynthesis.getVoices();
-        if (voices.length > 0) {
-            utterance.voice = voices[0];
-        }
+  const handleVoiceChange = (e) => {
+    const val = e.target.value;
+    if (val.startsWith('lang:')) {
+      const prefix = val.slice(5);
+      let found = voices.find(v => v.lang.toLowerCase().startsWith(prefix) && v.lang.toLowerCase().includes('in'))
+        || voices.find(v => v.lang.toLowerCase().startsWith(prefix));
+      if (found) {
+        setSelectedVoice(found);
+        voiceRef.current = found;
+        speakResponse(`Voice changed to ${languageNames[prefix] || prefix}`);
       }
-
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      
-      utterance.onend = () => {
-          console.log("Speech finished");
-      };
-      
-      utterance.onerror = (e) => {
-          console.error("Speech error:", e);
-      };
-
-      window.speechSynthesis.speak(utterance);
     } else {
-        console.error("Speech synthesis not supported");
+      const voice = voices.find(v => v.name === val);
+      if (voice) {
+        setSelectedVoice(voice);
+        voiceRef.current = voice;
+        speakResponse(`Voice changed to ${voice.name}`);
+      }
     }
   };
 
-  // Typewriter Effect Hook
-  const useTypewriter = (text, speed = 20) => {
-    const [displayText, setDisplayText] = useState('');
-    
-    useEffect(() => {
-      if (!text) {
-        setDisplayText('');
-        return;
-      }
-      
-      let i = 0;
-      setDisplayText('');
-      
-      const timer = setInterval(() => {
-        if (i < text.length) {
-          i++;
-          setDisplayText(text.substring(0, i));
-        } else {
-          clearInterval(timer);
-        }
-      }, speed);
+  const features = [
+    { icon: Mic, title: "Voice Control", desc: "Natural speech input" },
+    { icon: Globe, title: "10+ Languages", desc: "Indian languages supported" },
+    { icon: CloudSun, title: "Live Weather", desc: "City-level accuracy" },
+    { icon: Cpu, title: "AI Powered", desc: "Llama 3.3 70B via Groq" },
+  ];
 
-      return () => clearInterval(timer);
-    }, [text, speed]);
-    
-    return displayText;
-  };
+  const suggestions = [
+    { icon: Clock, label: "What time is it?", cmd: "What is the time?" },
+    { icon: Calendar, label: "Today's date", cmd: "What is the date today?" },
+    { icon: CloudSun, label: "Weather in Delhi", cmd: "What is the weather in Delhi?" },
+    { icon: Laugh, label: "Tell a joke", cmd: "Tell me a joke" },
+    { icon: HelpCircle, label: "Who are you?", cmd: "Who are you?" },
+  ];
 
-  // Component for Typewriter Text
-  const TypewriterText = ({ text }) => {
-    const displayText = useTypewriter(text);
-    return <span>{displayText}</span>;
-  };
-
-  // ❌ Error handler
-  const handleError = (msg) => {
-    setResponse(msg);
-    addMessage('bot', msg);
-    setStatus("Error");
-    speakResponse(msg);
-    setTimeout(() => setStatus("System Online"), 3000);
+  // Format basic markdown (bold and italic) safely
+  const formatText = (text) => {
+    if (!text) return { __html: "" };
+    let parsed = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/\n/g, '<br/>');
+    return { __html: parsed };
   };
 
   return (
-    <div className="container">
+    <div className="app-layout">
       <Head>
-        <title>AIVA by DB</title>
+        <title>AIVA — AI Voice Assistant</title>
+        <meta name="description" content="AIVA: AI voice assistant with multilingual support, live weather, and conversational AI." />
         <link rel="icon" href="/favicon.svg" />
-        <link href="https://fonts.googleapis.com/css?family=Orbitron:700&display=swap" rel="stylesheet" />
       </Head>
-      
+
       {isLoading && <JarvisLoader onFinish={() => setIsLoading(false)} />}
 
       {!isLoading && (
         <>
-          {/* HUD Corners */}
-          {showHud && (
-            <>
-              <div className="hud-corner top-left">
-                💻 SYSTEM: ONLINE<br/>
-                ⚙️ CPU: 12%<br/>
-                🧠 MEM: 4.2GB
+          {/* START OVERLAY */}
+          {!systemStarted && (
+            <div className="start-overlay">
+              <div className="start-content">
+                <Shield size={48} className="start-shield" />
+                <h2 className="start-title">AIVA</h2>
+                <p className="start-sub">Artificially Intelligent Voice Assistant</p>
+                <button className="start-btn" id="start-btn" onClick={initializeSystem}>
+                  <Zap size={18} /> INITIALIZE
+                </button>
               </div>
-              
-              <div className="hud-corner bottom-left">
-                🔋 PWR: 98%<br/>
-                🌡️ TMP: 34°C
-              </div>
-              <div className="hud-corner bottom-right">
-                📦 VER: 2.0.1<br/>
-                🛠️ BLD: ALPHA
-              </div>
-            </>
+            </div>
           )}
 
-      {!systemStarted && (
-        <div className="start-overlay">
-          <button className="start-btn" onClick={initializeSystem}>
-            INITIALIZE AIVA PROTOCOL
-          </button>
-        </div>
-      )}
+          {/* NAVBAR */}
+          <nav className="navbar" id="navbar">
+            <div className="navbar-brand">
+              <div className="logo-icon"><Shield size={16} /></div>
+              <h1>AIVA</h1>
+            </div>
+            <div className="navbar-center">
+              <Activity size={14} className={systemStarted ? 'status-icon-online' : 'status-icon-offline'} />
+              <span>{status}</span>
+            </div>
+            <div className="navbar-right">
+              <Volume2 size={14} className="voice-icon" />
+              <select className="navbar-voice-select" id="voice-selector" onChange={handleVoiceChange} value={selectedVoice?.name || ""}>
+                {voices.length === 0 && <option>Loading...</option>}
+                <option disabled>── Languages ──</option>
+                {Object.keys(languageNames)
+                  .filter(c => voices.some(v => v.lang.toLowerCase().startsWith(c)))
+                  .map(c => (
+                    <option key={c} value={`lang:${c}`}>{languageNames[c]}</option>
+                  ))}
+                <option disabled>── All Voices ──</option>
+                {(() => {
+                  const g = {};
+                  voices.forEach(v => { const c = v.lang.split('-')[0]; if (!g[c]) g[c] = []; g[c].push(v); });
+                  return Object.entries(g).map(([c, list]) => (
+                    <optgroup key={c} label={languageNames[c] || c}>
+                      {list.map(v => <option key={v.name} value={v.name}>{v.name} ({v.lang})</option>)}
+                    </optgroup>
+                  ));
+                })()}
+              </select>
+            </div>
+          </nav>
 
-      <div className="voice-controls">
-        <select 
-          className="voice-select"
-          onChange={(e) => {
-            const val = e.target.value;
-            if (val.startsWith('lang:')) {
-              // user selected a language, pick first matching voice with Indian accent
-              const prefix = val.slice(5);
-              let found = voices.find(v=>
-                v.lang.toLowerCase().startsWith(prefix) && v.lang.toLowerCase().includes('in')
+          {/* FEATURES ROW */}
+          <div className="features-row" id="features">
+            {features.map((f, i) => {
+              const Icon = f.icon;
+              return (
+                <div className="feature-chip" key={i}>
+                  <Icon size={20} className="chip-icon" />
+                  <div className="chip-text">
+                    <h4>{f.title}</h4>
+                    <p>{f.desc}</p>
+                  </div>
+                </div>
               );
-              if (!found) {
-                // fallback to any voice in that language
-                found = voices.find(v=>
-                  v.lang.toLowerCase().startsWith(prefix)
-                );
-              }
-              if (found) {
-                setSelectedVoice(found);
-                voiceRef.current = found;
-                const utterance = new SpeechSynthesisUtterance("Voice system updated.");
-                utterance.voice = found;
-                window.speechSynthesis.speak(utterance);
-              }
-            } else {
-              const voice = voices.find(v => v.name === val);
-              if (voice) {
-                setSelectedVoice(voice);
-                voiceRef.current = voice;
-                const utterance = new SpeechSynthesisUtterance("Voice system updated.");
-                utterance.voice = voice;
-                window.speechSynthesis.speak(utterance);
-              }
-            }
-          }}
-          value={selectedVoice?.name || ""}
-        >
-          {voices.length === 0 && <option>Loading voices...</option>}
-          {/* language shortcuts */}
-          <option disabled>──────────── Languages ────────────</option>
-          <option value="lang:hi">Hindi</option>
-          <option value="lang:bn">Bengali</option>
-          <option value="lang:ta">Tamil</option>
-          <option value="lang:te">Telugu</option>
-          <option value="lang:mr">Marathi</option>
-          <option value="lang:gu">Gujarati</option>
-          <option value="lang:kn">Kannada</option>
-          <option value="lang:ml">Malayalam</option>
-          <option value="lang:pa">Punjabi</option>
-          <option disabled>──────────── Voices ────────────</option>
-          {/* group voices by base language code for better organization */}
-          {(() => {
-            const groups = {};
-            voices.forEach(v => {
-              const code = v.lang.split('-')[0];
-              if (!groups[code]) groups[code] = [];
-              groups[code].push(v);
-            });
-            return Object.entries(groups).map(([code, list]) => (
-              <optgroup key={code} label={languageNames[code] || code}>
-                {list.map(voice => (
-                  <option key={voice.name} value={voice.name}>
-                    {voice.name} ({voice.lang}{voice.lang.toLowerCase().includes('in') ? ' – Indian accent' : ''})
-                  </option>
-                ))}
-              </optgroup>
-            ));
-          })()}
-        </select>
-        {voices.length > 0 && !voices.some(v => v.lang.includes('IN')) && (
-            <div style={{fontSize: '0.7rem', color: 'rgba(0,255,255,0.5)', textAlign: 'right', marginTop: '5px'}}>
-                * Install OS language packs for Indian voices
-            </div>
-        )}
-        {voices.length > 0 && (
-            <div style={{fontSize: '0.7rem', color: 'rgba(0,255,255,0.5)', textAlign: 'right', marginTop: '3px'}}>
-                Voices are grouped by language; Indian‑accent variants are flagged in the list so you can choose the best match for your state.
-            </div>
-        )}
-        {missingLangs.length > 0 && (
-            <div style={{fontSize: '0.7rem', color: '#ff6666', textAlign: 'right', marginTop: '3px'}}>
-                * No Indian‑accent voice available for: {missingLangs.join(', ')}. Install language packs if needed.
-            </div>
-        )}
-      </div>
+            })}
+          </div>
 
-      <h1 className="title">AIVA</h1>
-      <p className="subtitle">ARTIFICIAL INTELLIGENCE VOICE ASSISTANT</p>
-
-      <div className="mic-container">
-        <div className="arc-reactor">
-            <div className="ring-1" style={{ transform: `scale(${1 + volume / 100})`, boxShadow: `0 0 ${20 + volume}px rgba(0, 255, 255, 0.5)` }}></div>
-            <div className="ring-2" style={{ transform: `rotate(${Date.now() / 50}deg) scale(${1 + volume / 150})` }}></div>
-            <div className="ring-3"></div>
-        </div>
-        <button
-          className={`mic-button ${isListening ? "listening" : ""}`}
-          onClick={startListening}
-          disabled={!isSupported}
-          style={{ transform: `scale(${1 + volume / 200})` }}
-        >
-          🎤
-        </button>
-      </div>
-
-      <div className="status-display">
-        [{status}]
-      </div>
-      {/* chat toolbar */}
-      <div className="chat-tools">
-        <button onClick={copyChat}>📋 Copy Chat</button>
-        <button onClick={clearChat}>🗑️ Clear Chat</button>
-        <button onClick={showHistory}>📜 History</button>
-        <button onClick={() => setShowHud(prev => !prev)}>{showHud ? '🙈 Hide HUD' : '👁️ Show HUD'}</button>
-      </div>
-
-      {(chatHistory.length > 0 || lastCommand) && (
-        <div className="glass-panel">
-          {chatHistory.map((msg, index) => (
-            <div key={index} className={`chat-msg ${msg.type}`}>            
-              {msg.type === 'bot' && <div className="avatar">🤖</div>}
-              <div className="bubble">
-                <p>{msg.text}</p>
-                <div className="timestamp">{msg.time}</div>
+          {/* CHAT SECTION — full height with input bar */}
+          <section className="chat-section" id="chat">
+            <div className="chat-header">
+              <div className="chat-header-left">
+                <MessageSquare size={16} className="chat-icon-pulse" />
+                <span className="chat-title">Conversation</span>
               </div>
-              {msg.type === 'user' && <div className="avatar">👤</div>}
+              <div className="chat-tools">
+                <button onClick={copyChat}><Copy size={12} /> Copy</button>
+                <button onClick={clearChat}><Trash2 size={12} /> Clear</button>
+              </div>
             </div>
-          ))}
-          
-          {status === "Processing..." && lastCommand && (
-             <div className="chat-msg user">
-               <div className="bubble" style={{ opacity: 0.7 }}>
-                 <p>&gt; {lastCommand} <span className="blink">_</span></p>
-               </div>
-               <div className="avatar">👤</div>
-             </div>
-          )}
-          <div id="chat-end" />
-        </div>
-      )}
-      
-      {!isSupported && (
-        <p style={{color: 'red', marginTop: '20px'}}>
-          CRITICAL ERROR: BROWSER NOT SUPPORTED
-        </p>
-      )}
-      </>
+
+            <div className="chat-messages" id="chat-messages">
+              {chatHistory.length === 0 && (
+                <div className="chat-empty">
+                  <MessageSquare size={40} className="empty-icon" />
+                  <h3>Ready to assist you</h3>
+                  <p>Tap the mic below or pick a suggestion to start.</p>
+                  <div className="chat-suggestions">
+                    {suggestions.map((s, i) => {
+                      const Icon = s.icon;
+                      return (
+                        <button className="suggestion-chip" key={i} onClick={() => sendQuickCommand(s.cmd)}>
+                          <Icon size={14} /> {s.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {chatHistory.map((msg, i) => (
+                <div key={i} className={`chat-msg ${msg.type}`}>
+                  {msg.type === 'bot' && <div className="avatar"><Bot size={16} /></div>}
+                  <div className="bubble">
+                    <p dangerouslySetInnerHTML={formatText(msg.text)} />
+                    <div className="timestamp">{msg.time}</div>
+                  </div>
+                  {msg.type === 'user' && <div className="avatar"><User size={16} /></div>}
+                </div>
+              ))}
+
+              {isProcessing && (
+                <div className="chat-msg bot">
+                  <div className="avatar"><Bot size={16} /></div>
+                  <div className="bubble">
+                    <p style={{ opacity: 0.6, fontStyle: 'italic' }}>Thinking<span className="blink">...</span></p>
+                  </div>
+                </div>
+              )}
+
+              <div id="chat-end" />
+            </div>
+
+            {/* INPUT BAR */}
+            <div className="chat-input-bar">
+              {!isTextMode ? (
+                <>
+                  <button
+                    className={`mic-btn ${isListening ? 'listening' : ''}`}
+                    id="mic-btn"
+                    onClick={toggleMic}
+                    disabled={!isSupported || isProcessing}
+                  >
+                    {isListening ? <MicOff size={22} /> : <Mic size={22} />}
+                  </button>
+                  <span className={`status-label ${isListening ? 'active' : ''}`} onClick={() => setIsTextMode(true)}>
+                    {isListening ? (liveTranscript || 'Listening — speak now...') :
+                      isProcessing ? 'Processing your request...' :
+                        'Tap the mic to speak or click here to type'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <button className="mode-toggle-btn" onClick={() => setIsTextMode(false)} title="Switch to Voice Mode">
+                    <Mic size={18} />
+                  </button>
+                  <input
+                    type="text"
+                    className="text-mode-input"
+                    value={textInput}
+                    onChange={(e) => setTextInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && textInput.trim()) {
+                        sendQuickCommand(textInput);
+                        setTextInput("");
+                      }
+                    }}
+                    placeholder="Type your message here..."
+                    disabled={isProcessing}
+                    autoFocus
+                  />
+                  <button
+                    className="send-btn"
+                    disabled={!textInput.trim() || isProcessing}
+                    onClick={() => {
+                      sendQuickCommand(textInput);
+                      setTextInput("");
+                    }}
+                  >
+                    <Send size={18} />
+                  </button>
+                </>
+              )}
+
+              <div className="voice-info-compact">
+                <Volume2 size={11} />
+                <span>{selectedVoice ? selectedVoice.name.split(' ').slice(0, 2).join(' ') : '...'}</span>
+              </div>
+            </div>
+          </section>
+        </>
       )}
     </div>
   );
