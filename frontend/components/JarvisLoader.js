@@ -1,245 +1,276 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { Shield, Cpu, Wifi, Database, Eye, Terminal, Zap, Lock, Fingerprint, Radio } from "lucide-react";
 
 export default function JarvisLoader({ onFinish }) {
-  const bootSequence = [
-    "ARC REACTOR ONLINE...",
-    "BOOTING JARVIS AI...",
-    "CALIBRATING HUD SENSORS...",
-    "ENGAGING MARVEL PROTOCOLS...",
-    "SUIT READY"
-  ];
-  // welcome flag is no longer used; loader text removed
-  // const [showWelcome, setShowWelcome] = useState(true);
-
-  const [line, setLine] = useState("");
-  const [index, setIndex] = useState(0);
+  const [lines, setLines] = useState([]);
   const [progress, setProgress] = useState(0);
-  const [show3D, setShow3D] = useState(false);
+  const [phase, setPhase] = useState("boot"); // boot, scan, ready
+  const [matrixChars, setMatrixChars] = useState([]);
+  const [glitchText, setGlitchText] = useState("");
+  const [currentTime, setCurrentTime] = useState("");
+  const canvasRef = useRef(null);
+  const animFrameRef = useRef(null);
+
+  const bootSequence = [
+    { text: "[SYS] Initializing kernel modules...", delay: 400, icon: "cpu" },
+    { text: "[NET] Establishing secure tunnel...", delay: 500, icon: "wifi" },
+    { text: "[SEC] Loading encryption protocols...", delay: 400, icon: "lock" },
+    { text: "[DB]  Connecting neural database...", delay: 600, icon: "database" },
+    { text: "[AI]  Loading AIVA language model...", delay: 500, icon: "zap" },
+    { text: "[BIO] Calibrating voice biometrics...", delay: 400, icon: "fingerprint" },
+    { text: "[SIG] Scanning frequency bands...", delay: 300, icon: "radio" },
+    { text: "[VIS] Activating visual cortex...", delay: 400, icon: "eye" },
+    { text: "[SYS] All subsystems nominal.", delay: 600, icon: "shield" },
+    { text: "[RDY] AIVA PROTOCOL ACTIVE", delay: 800, icon: "terminal" },
+  ];
+
+  const iconMap = {
+    cpu: Cpu, wifi: Wifi, lock: Lock, database: Database,
+    zap: Zap, fingerprint: Fingerprint, radio: Radio,
+    eye: Eye, shield: Shield, terminal: Terminal,
+  };
+
+  // Live clock (client-only to avoid hydration mismatch)
+  useEffect(() => {
+    setCurrentTime(new Date().toLocaleTimeString());
+    const timer = setInterval(() => {
+      setCurrentTime(new Date().toLocaleTimeString());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Matrix rain effect on canvas
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const chars = "アイウエオカキクケコサシスセソタチツテトAIVA01{}[]<>/\\|=+-*&^%$#@!";
+    const fontSize = 14;
+    const columns = Math.floor(canvas.width / fontSize);
+    const drops = Array(columns).fill(1);
+
+    const drawMatrix = () => {
+      ctx.fillStyle = "rgba(5, 8, 22, 0.06)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#00ffe720";
+      ctx.font = `${fontSize}px monospace`;
+
+      for (let i = 0; i < drops.length; i++) {
+        const text = chars[Math.floor(Math.random() * chars.length)];
+        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+          drops[i] = 0;
+        }
+        drops[i]++;
+      }
+      animFrameRef.current = requestAnimationFrame(drawMatrix);
+    };
+
+    drawMatrix();
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, []);
+
+  // Boot sequence typewriter
+  useEffect(() => {
+    let lineIndex = 0;
+    let charIndex = 0;
+    let currentLines = [];
+
+    const typeNext = () => {
+      if (lineIndex >= bootSequence.length) {
+        setPhase("scan");
+        setTimeout(() => {
+          setPhase("ready");
+          speakBoot();
+          setTimeout(onFinish, 1800);
+        }, 1200);
+        return;
+      }
+
+      const current = bootSequence[lineIndex];
+      if (charIndex <= current.text.length) {
+        const partial = current.text.slice(0, charIndex);
+        const updatedLines = [
+          ...currentLines,
+          { text: partial, icon: current.icon, complete: false },
+        ];
+        setLines(updatedLines);
+        setProgress(((lineIndex + charIndex / current.text.length) / bootSequence.length) * 100);
+        charIndex++;
+        setTimeout(typeNext, 18 + Math.random() * 12);
+      } else {
+        currentLines.push({
+          text: current.text,
+          icon: current.icon,
+          complete: true,
+        });
+        setLines([...currentLines]);
+        lineIndex++;
+        charIndex = 0;
+        setTimeout(typeNext, current.delay);
+      }
+    };
+
+    setTimeout(typeNext, 800);
+  }, []);
+
+  // Glitch text effect
+  useEffect(() => {
+    const glitchChars = "!@#$%^&*()_+-=[]{}|;':\",./<>?";
+    const target = "A.I.V.A";
+    let interval;
+
+    if (phase === "scan") {
+      let iterations = 0;
+      interval = setInterval(() => {
+        setGlitchText(
+          target
+            .split("")
+            .map((char, i) => {
+              if (i < iterations) return char;
+              return glitchChars[Math.floor(Math.random() * glitchChars.length)];
+            })
+            .join("")
+        );
+        iterations += 0.4;
+        if (iterations >= target.length + 1) {
+          setGlitchText(target);
+          clearInterval(interval);
+        }
+      }, 40);
+    }
+
+    return () => clearInterval(interval);
+  }, [phase]);
+
+  // Sound effects
+  const playBootSound = (freq, dur, type = "square") => {
+    if (typeof window === "undefined") return;
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+      osc.start();
+      osc.stop(ctx.currentTime + dur);
+    } catch (e) { }
+  };
 
   useEffect(() => {
-    let char = 0;
-    const currentText = bootSequence[index];
-    if (index === 0) playSound('arc');
-    else if (index === bootSequence.length - 2) playSound('hud');
-    else if (index === bootSequence.length - 1) { setShow3D(true); playSound('suit'); }
-    const stepProgress = (index / (bootSequence.length - 1)) * 100;
-    setProgress(stepProgress);
-    const typer = setInterval(() => {
-      if (char <= currentText.length) {
-        setLine(currentText.slice(0, char));
-        char++;
-      } else {
-        clearInterval(typer);
-        setTimeout(async () => {
-          if (index < bootSequence.length - 1) {
-            setIndex(index + 1);
-            setLine("");
-          } else {
-            setProgress(100);
-            try { await fetch("http://localhost:5000/health"); } catch (e) {}
-            speakBoot();
-            // welcome flag no longer tracked
-            setTimeout(onFinish, 2000);
-          }
-        }, 900);
-      }
-    }, 35);
-    return () => clearInterval(typer);
-  }, [index]);
+    playBootSound(200, 0.3, "triangle");
+    const t1 = setTimeout(() => playBootSound(400, 0.2, "sawtooth"), 2000);
+    const t2 = setTimeout(() => playBootSound(600, 0.4, "square"), 4000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
 
-  // voice that plays at the end of the boot sequence; make the message descriptive
   const speakBoot = () => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      const utterance = new window.SpeechSynthesisUtterance(
-        "AIVA is online and ready. Initialising interface now."
-      );
-      utterance.rate = 1.1;
-      utterance.pitch = 1.2;
-      utterance.volume = 1.0;
-      window.speechSynthesis.speak(utterance);
+      const u = new window.SpeechSynthesisUtterance("AIVA protocol active. All systems online.");
+      u.rate = 1.05;
+      u.pitch = 1.1;
+      u.volume = 0.9;
+      window.speechSynthesis.speak(u);
     }
   };
-
-  const playSound = (type) => {
-    if (typeof window === "undefined") return;
-    const ctx = window.AudioContext ? new window.AudioContext() : null;
-    if (!ctx) return;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    if (type === 'arc') {
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(60, ctx.currentTime);
-      gain.gain.setValueAtTime(0.2, ctx.currentTime);
-      osc.start();
-      osc.frequency.linearRampToValueAtTime(440, ctx.currentTime + 0.7);
-      gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.7);
-      osc.stop(ctx.currentTime + 0.7);
-    } else if (type === 'hud') {
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(120, ctx.currentTime);
-      gain.gain.setValueAtTime(0.15, ctx.currentTime);
-      osc.start();
-      osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.5);
-      gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-      osc.stop(ctx.currentTime + 0.5);
-    } else if (type === 'suit') {
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(200, ctx.currentTime);
-      gain.gain.setValueAtTime(0.25, ctx.currentTime);
-      osc.start();
-      osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.4);
-      gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.4);
-      osc.stop(ctx.currentTime + 0.4);
-    }
-  };
-
-  // (moved earlier)
 
   return (
-    <div style={{
-      width: "100vw",
-      height: "100vh",
-      position: "fixed",
-      top: 0,
-      left: 0,
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      background: "radial-gradient(circle at 60% 40%, #0a1a2f 0%, #050a18 100%)",
-      color: "#00ffe7",
-      fontFamily: "Orbitron, Segoe UI, monospace",
-      fontSize: "2.2rem",
-      letterSpacing: "0.18em",
-      zIndex: 9999,
-      overflow: "hidden",
-      boxShadow: "0 0 80px 10px #00ffe7, 0 0 0 8px #0ff2, 0 0 0 16px #0ff1",
-      border: "3px solid #00ffe7",
-      borderRadius: "32px"
-    }}>
-      {/* Holographic Scanlines */}
-      <div style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        width: "100vw",
-        height: "100vh",
-        zIndex: 2,
-        pointerEvents: "none",
-        background: `repeating-linear-gradient(
-          to bottom,
-          rgba(0,255,231,0.08) 0px,
-          rgba(0,255,231,0.08) 2px,
-          transparent 2px,
-          transparent 8px
-        )`
-      }} />
-      {/* Animated Holographic Glow Overlay */}
-      <div style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        width: "100vw",
-        height: "100vh",
-        zIndex: 3,
-        pointerEvents: "none",
-        background: "radial-gradient(circle at 60% 40%, rgba(0,255,231,0.12) 0%, transparent 70%)"
-      }} />
-      {/* loader welcome message removed earlier */}
-      {/* Futuristic AI Core SVG */}
-      {show3D && (
-        <div style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          zIndex: 10000,
-          pointerEvents: "none"
-        }}>
-          <svg width="260" height="260" viewBox="0 0 260 260">
-            <defs>
-              <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor="#00ffe7" stopOpacity="0.7" />
-                <stop offset="100%" stopColor="#0a1a2f" stopOpacity="0" />
-              </radialGradient>
-              <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#00ffe7" />
-                <stop offset="100%" stopColor="#0ff2" />
-              </linearGradient>
-            </defs>
-            <circle cx="130" cy="130" r="110" fill="none" stroke="url(#ringGrad)" strokeWidth="6" opacity="0.18">
-              <animateTransform attributeName="transform" type="rotate" from="0 130 130" to="360 130 130" dur="8s" repeatCount="indefinite" />
-            </circle>
-            <circle cx="130" cy="130" r="80" fill="none" stroke="#00ffe7" strokeWidth="2" opacity="0.12">
-              <animateTransform attributeName="transform" type="rotate" from="360 130 130" to="0 130 130" dur="12s" repeatCount="indefinite" />
-            </circle>
-            <circle cx="130" cy="130" r="50" fill="url(#coreGlow)" />
-            <g>
-              <animateTransform attributeName="transform" type="rotate" from="0 130 130" to="360 130 130" dur="2.5s" repeatCount="indefinite" />
-              <polygon points="130,40 150,130 130,220 110,130" fill="#00ffe7" opacity="0.13" />
-            </g>
-          </svg>
+    <div className="hacker-loader">
+      {/* Matrix canvas background */}
+      <canvas ref={canvasRef} className="matrix-canvas" />
+
+      {/* Scanlines overlay */}
+      <div className="scanline-overlay" />
+
+      {/* Main content */}
+      <div className="loader-content">
+        {/* Top bar */}
+        <div className="loader-topbar">
+          <div className="topbar-left">
+            <Shield size={14} />
+            <span>AIVA SECURE BOOT v2.4.1</span>
+          </div>
+          <div className="topbar-right">
+            <span className="topbar-blink" />
+            <span suppressHydrationWarning>{currentTime}</span>
+          </div>
         </div>
-      )}
-      {/* Boot Sequence Text */}
-      <div style={{
-        marginBottom: 40,
-        textShadow: "0 0 16px #00ffe7, 0 0 32px #0a1a2f",
-        background: "rgba(10,30,50,0.92)",
-        padding: "0.7em 1.5em",
-        borderRadius: "14px",
-        color: "#00ffe7",
-        fontWeight: 700,
-        fontSize: "2.3rem",
-        zIndex: 4,
-        border: "2px solid #00ffe7",
-        boxShadow: "0 0 24px #00ffe7, 0 0 48px #0ff2"
-      }}>
-        <span>{line}</span>
+
+        {/* Terminal window */}
+        <div className="terminal-window">
+          <div className="terminal-header">
+            <div className="terminal-dots">
+              <span className="dot-red" />
+              <span className="dot-yellow" />
+              <span className="dot-green" />
+            </div>
+            <span className="terminal-title">
+              <Terminal size={12} />
+              aiva@system:~
+            </span>
+          </div>
+
+          <div className="terminal-body">
+            {lines.map((line, i) => {
+              const IconComp = iconMap[line.icon];
+              return (
+                <div key={i} className={`term-line ${line.complete ? "complete" : "typing"}`}>
+                  <span className="term-icon">
+                    {IconComp && <IconComp size={13} />}
+                  </span>
+                  <span className="term-text">
+                    {line.text}
+                    {!line.complete && <span className="cursor-blink">█</span>}
+                  </span>
+                  {line.complete && <span className="term-ok">✓</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div className="loader-progress-container">
+          <div className="loader-progress-bar">
+            <div className="loader-progress-fill" style={{ width: `${progress}%` }} />
+            <div className="loader-progress-glow" style={{ left: `${progress}%` }} />
+          </div>
+          <div className="loader-progress-label">
+            <span>BOOT SEQUENCE</span>
+            <span>{Math.round(progress)}%</span>
+          </div>
+        </div>
+
+        {/* Phase: Scan / Ready */}
+        {phase === "scan" && (
+          <div className="scan-phase">
+            <div className="scan-ring">
+              <div className="scan-ring-inner" />
+            </div>
+            <div className="glitch-title">{glitchText}</div>
+            <p className="scan-label">ESTABLISHING NEURAL LINK...</p>
+          </div>
+        )}
+
+        {phase === "ready" && (
+          <div className="ready-phase">
+            <div className="ready-icon-pulse">
+              <Zap size={32} />
+            </div>
+            <div className="ready-title">A.I.V.A</div>
+            <p className="ready-sub">PROTOCOL ACTIVE</p>
+          </div>
+        )}
       </div>
-      {/* Progress Bar */}
-      <div style={{
-        width: "60vw",
-        height: 12,
-        background: "#0a1a2f",
-        borderRadius: 8,
-        overflow: "hidden",
-        marginBottom: 30,
-        boxShadow: "0 0 16px #00ffe7"
-      }}>
-        <div style={{
-          width: `${progress}%`,
-          height: "100%",
-          background: "linear-gradient(90deg,#00ffe7 0%,#0ff2 100%)",
-          transition: "width 0.3s",
-          boxShadow: "0 0 12px #00ffe7"
-        }} />
-      </div>
-      {/* Loader Label */}
-      <div style={{
-        fontSize: "1.3rem",
-        opacity: 0.93,
-        letterSpacing: "0.22em",
-        textShadow: "0 0 12px #00ffe7, 0 0 24px #0a1a2f",
-        fontWeight: 800,
-        zIndex: 5
-      }}>
-        <span style={{ color: "#00ffe7", fontWeight: 900 }}>AIVA</span> <span style={{ color: "#0ff2", fontWeight: 700 }}>INTERFACE</span> <span style={{ color: "#b6c7e3", fontWeight: 700 }}>Loader</span>
-      </div>
-      {/* Animated Border SVG for extra Tron effect */}
-      <svg width="100%" height="100%" style={{ position: "absolute", top: 0, left: 0, zIndex: 10, pointerEvents: "none" }}>
-        <defs>
-          <linearGradient id="borderGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#00ffe7" />
-            <stop offset="100%" stopColor="#0ff2" />
-          </linearGradient>
-        </defs>
-        <rect x="2%" y="2%" width="96%" height="96%" rx="32" fill="none" stroke="url(#borderGrad)" strokeWidth="4">
-          <animate attributeName="stroke-dashoffset" from="0" to="1000" dur="6s" repeatCount="indefinite" />
-        </rect>
-      </svg>
     </div>
   );
 }
