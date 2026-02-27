@@ -1,0 +1,54 @@
+# ============================================
+# AIVA — Project .gitignore
+# ============================================
+
+# === Dependencies ===
+node_modules/
+.pnp/
+.pnp.js
+
+# === Environment Variables (secrets) ===
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+
+# === Next.js Build ===
+frontend/.next/
+frontend/out/
+
+# === Logs ===
+logs/
+backend/logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === OS Files ===
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# === IDE / Editor ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# === Build Artifacts ===
+dist/
+build/
+
+# === Misc ===
+*.tsbuildinfo
+next-env.d.ts
+
+# === Test / Dev only files ===
+backend/test-*.js
