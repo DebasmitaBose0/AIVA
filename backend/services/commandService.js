@@ -1,6 +1,6 @@
 const logger = require('../logger');
 const OpenAI = require('openai');
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
 // This service understands multiple Indian languages for basic greetings
 // and small talk.  Supported language keywords include Hindi, Bengali,
@@ -21,14 +21,14 @@ class CommandService {
   }
 
   initGrok() {
-    if (process.env.GROK_API_KEY) {
+    if (process.env.GROQ_API_KEY) {
       this.openai = new OpenAI({
-        apiKey: process.env.GROK_API_KEY,
+        apiKey: process.env.GROQ_API_KEY,
         baseURL: "https://api.groq.com/openai/v1",
       });
       logger.info('Groq API initialized.');
     } else {
-      logger.warn('GROK_API_KEY is not set. AI features will be disabled.');
+      logger.warn('GROQ_API_KEY is not set. AI features will be disabled.');
     }
   }
 
@@ -61,8 +61,8 @@ class CommandService {
     }
 
     // Creator-specific override
-    if (lowerCmd.includes('debasmita') || lowerCmd.includes('debosmita') || lowerCmd.includes('who is debosmita') || lowerCmd.includes('who is debasmita')) {
-      return "My creator is Debasmita Bose. She built me to be helpful, friendly, and a bit quirky. You can find her on LinkedIn https://www.linkedin.com/in/debasmita-bose2023/ or GitHub https://github.com/DebasmitaBose0";
+    if (lowerCmd.includes('debasmita') || lowerCmd.includes('babin') || lowerCmd.includes('who are the creators') || lowerCmd.includes('who made you')) {
+      return "My creators are Debasmita Bose and Babin Bid. It is a duo project and built to be helpful, friendly, and a bit quirky.";
     }
 
     // ==========================================
@@ -72,7 +72,7 @@ class CommandService {
     // 1. Time & Date (with varied replies)
     // Exclude "temperature" or "weather" queries from matching "day" or "date"
     const isWeatherQuery = lowerCmd.includes('temperature') || lowerCmd.includes('weather');
-    
+
     if (!isWeatherQuery && (lowerCmd.match(/what.*time/) || lowerCmd.includes('current time'))) {
       return this.randomResponse([
         `It is ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true })}.`,
@@ -87,79 +87,113 @@ class CommandService {
       ]);
     }
 
-    // 🌤️ Weather handling with retries and alternative provider
+    // 🌤️ Weather handling (OpenWeatherMap Primary, WeatherAPI Fallback)
     if (lowerCmd.includes('temperature') || lowerCmd.includes('weather')) {
-        try {
-            let city = '';
-            const cityMatch = lowerCmd.match(/in ([a-zA-Z\s]+)/);
-            if (cityMatch && cityMatch[1]) {
-                city = cityMatch[1].replace('today', '').trim();
-            }
-            const candidates = [];
-            if (city) {
-                candidates.push(city);
-                const firstWord = city.split(/[ ,]+/)[0];
-                if (firstWord && firstWord !== city) candidates.push(firstWord);
-            } else {
-                candidates.push('');
-            }
-
-            const tryWttr = async (q) => {
-                const url = q ? `https://wttr.in/${encodeURIComponent(q)}?format=%t+%C` : `https://wttr.in/?format=%t+%C`;
-                logger.info(`Fetching weather from: ${url}`);
-                try {
-                    const weatherRes = await fetch(url, { timeout: 10000 });
-                    if (weatherRes.ok) {
-                        const weatherText = (await weatherRes.text()).trim();
-                        if (weatherText && weatherText.length < 50 && !weatherText.toLowerCase().includes('unknown')) {
-                            return weatherText;
-                        }
-                    }
-                } catch (err) {
-                    logger.warn('wttr fetch failed', err.message || err);
-                }
-                return null;
-            };
-
-            for (const q of candidates) {
-                const weatherText = await tryWttr(q);
-                if (weatherText) {
-                    return `The current condition ${q ? 'in ' + q : ''} is ${weatherText}.`;
-                }
-            }
-
-            // fallback: open-meteo geolocation + weather
-            if (city) {
-                try {
-                    const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`);
-                    if (geoRes.ok) {
-                        const geoData = await geoRes.json();
-                        if (geoData.results && geoData.results.length) {
-                            const { latitude, longitude, name } = geoData.results[0];
-                            const meteoUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`;
-                            const meteoRes = await fetch(meteoUrl);
-                            if (meteoRes.ok) {
-                                const meteo = await meteoRes.json();
-                                if (meteo.current_weather) {
-                                    const temp = meteo.current_weather.temperature;
-                                    const wcode = meteo.current_weather.weathercode;
-                                    const condMap = {0:'clear',1:'mainly clear',2:'partly cloudy',3:'overcast'};
-                                    const cond = condMap[wcode] || 'unknown conditions';
-                                    return `Right now in ${name} it's ${temp}°C with ${cond}.`;
-                                }
-                            }
-                        }
-                    }
-                } catch (qm) {
-                    logger.warn('open-meteo fallback failed', qm.message || qm);
-                }
-            }
-
-            return `Sorry, I couldn't fetch the weather for ${city || 'your location'} right now.`;
-        } catch (e) {
-            logger.error("Weather Error:", e);
-            return `I'm having trouble getting the weather at the moment — please try again later.`;
+      try {
+        let city = '';
+        const cityMatch = lowerCmd.match(/in ([a-zA-Z\s]+)/);
+        if (cityMatch && cityMatch[1]) {
+          city = cityMatch[1].replace('today', '').trim();
         }
+
+        // Default to a known location if no city is found to prevent API errors
+        if (!city) {
+          city = "Kolkata"; // Default location
+        }
+
+        const myOpenWeatherKey = process.env.OPENWEATHER_API_KEY || 'a4fad424377d97a9f6613fb7aeeeec83';
+        const myWeatherApiKey = process.env.WEATHER_API_KEY || '14d4a5817fca43efb4c173415261102';
+
+        // 1. Primary: OpenWeatherMap
+        try {
+          const owUrl = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${myOpenWeatherKey}&units=metric`;
+          const owRes = await fetch(owUrl, { timeout: 8000 });
+          if (owRes.ok) {
+            const data = await owRes.json();
+            return `The current weather in ${data.name} is ${Math.round(data.main.temp)}°C with ${data.weather[0].description}.`;
+          }
+        } catch (e) {
+          logger.warn('OpenWeatherMap fallback triggered:', e.message);
+        }
+
+        // 2. Fallback: WeatherAPI.com
+        try {
+          const wapiUrl = `https://api.weatherapi.com/v1/current.json?key=${myWeatherApiKey}&q=${encodeURIComponent(city)}&aqi=no`;
+          const wapiRes = await fetch(wapiUrl, { timeout: 8000 });
+          if (wapiRes.ok) {
+            const data = await wapiRes.json();
+            return `The weather in ${data.location.name} is currently ${data.current.temp_c}°C, ${data.current.condition.text}.`;
+          }
+        } catch (e) {
+          logger.warn('WeatherAPI fallback failed:', e.message);
+        }
+
+        return `Sorry, I couldn't fetch the weather for ${city} right now.`;
+      } catch (e) {
+        logger.error("Weather Error:", e);
+        return `I'm having trouble getting the weather at the moment — please try again later.`;
+      }
+    }
+
+    // 🏏 Live Cricket Scores (CricketData.org)
+    if (lowerCmd.includes('cricket') && (lowerCmd.includes('score') || lowerCmd.includes('match') || lowerCmd.includes('live'))) {
+      const myCricketKey = process.env.CRICKET_API_KEY || '89e10f96-68cc-437a-bdd3-f8124614959a';
+      try {
+        const url = `https://api.cricapi.com/v1/currentMatches?apikey=${myCricketKey}&offset=0`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.data && data.data.length > 0) {
+            const match = data.data.find(m => m.matchStarted) || data.data[0];
+            return `In cricket, ${match.name}. The status is: ${match.status}.`;
+          }
+          return "There are no live cricket matches happening right now.";
+        }
+      } catch (e) {
+        logger.warn('Cricket API failed:', e.message);
+        return "I couldn't reach the cricket servers right now.";
+      }
+    }
+
+    // ⚽ Live Live Sports / Football Scores (api-football)
+    if ((lowerCmd.includes('football') || lowerCmd.includes('sport')) && (lowerCmd.includes('score') || lowerCmd.includes('match'))) {
+      const mySportsKey = process.env.SPORTS_API_KEY || 'f20346c764729f1e355eed7131658928';
+      try {
+        const url = `https://v3.football.api-sports.io/fixtures?live=all`;
+        const res = await fetch(url, { headers: { "x-apisports-key": mySportsKey } });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.response && data.response.length > 0) {
+            const match = data.response[0];
+            return `In live football, ${match.teams.home.name} is playing ${match.teams.away.name}. The score is ${match.goals.home} to ${match.goals.away}.`;
+          }
+          return "There are no major live football matches happening right now.";
+        }
+      } catch (e) {
+        logger.warn('Sports API failed:', e.message);
+      }
+    }
+
+    // 📰 News Reader
+    if (lowerCmd.includes('news') || lowerCmd.includes('headlines')) {
+      try {
+        const newsKey = process.env.NEWS_API_KEY;
+        if (!newsKey) {
+          return "I can fetch the news for you, but you need to add a NEWS_API_KEY in the backend environment variables. You can easily get a free one from GNews.io or NewsAPI.org.";
+        }
+        const url = `https://gnews.io/api/v4/top-headlines?category=general&lang=en&country=in&max=3&apikey=${newsKey}`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.articles && data.articles.length > 0) {
+            const headlines = data.articles.map((a, i) => `${i + 1}. ${a.title}`).join('. ');
+            return `Here are the top news headlines: ${headlines}.`;
+          }
+          return "I couldn't find any recent news stories.";
+        }
+      } catch (e) {
+        logger.warn('News API failed:', e.message);
+      }
     }
 
     // 2. Identity & Capabilities (with friendlier phrasing)
@@ -176,30 +210,30 @@ class CommandService {
       ]);
     }
     if (lowerCmd.includes('how can i assist you')) {
-        return this.randomResponse([
-            "Just keep my code bug-free and our conversations interesting!",
-            "A friendly chat and some good commands go a long way."
-        ]);
+      return this.randomResponse([
+        "Just keep my code bug-free and our conversations interesting!",
+        "A friendly chat and some good commands go a long way."
+      ]);
     }
     if (lowerCmd.includes('who made you') || lowerCmd.includes('creator')) {
       return this.randomResponse([
-        "I was brought to life by Debasmita — she's brilliant.",
-        "Debasmita built me. Give her a wave if you see her online!",
+        "I was brought to life by Debasmita and Babin — they're brilliant.",
+        "Debasmita and Babin built me. Give them a wave if you see them online!",
       ]);
     }
     if (lowerCmd.includes('change your voice') && (lowerCmd.includes('can you') || lowerCmd.includes('will you') || lowerCmd.includes('if i tell you'))) {
-        return "Sure! Tell me 'change voice to' plus the name, and I'll switch to a new personality.";
+      return "Sure! Tell me 'change voice to' plus the name, and I'll switch to a new personality.";
     }
 
     // 🔊 Voice Control
     const voiceMatch = lowerCmd.match(/(change|set|switch) (your )?voice to (.+)/i);
     if (voiceMatch) {
-        const targetVoice = voiceMatch[3].trim();
-        return {
-            text: `Changing voice to ${targetVoice}.`,
-            action: 'CHANGE_VOICE',
-            voiceName: targetVoice
-        };
+      const targetVoice = voiceMatch[3].trim();
+      return {
+        text: `Changing voice to ${targetVoice}.`,
+        action: 'CHANGE_VOICE',
+        voiceName: targetVoice
+      };
     }
 
     // 3. Greetings & Small Talk
@@ -224,7 +258,7 @@ class CommandService {
         "No problem at all!",
       ]);
     }
-    
+
     // 4. Fun / Easter Eggs
     if (lowerCmd.includes('tell me a joke')) {
       const jokes = [
@@ -243,60 +277,60 @@ class CommandService {
 
     // 5. Math Fallback
     if (lowerCmd.match(/what is \d+ [\+\-\*\/] \d+/)) {
-        try {
-            const parts = lowerCmd.match(/(\d+) ([\+\-\*\/]|plus|minus|times|divided by) (\d+)/);
-            if (parts) {
-                let n1 = parseInt(parts[1]);
-                let n2 = parseInt(parts[3]);
-                let op = parts[2];
-                let result = 0;
-                if (op === '+' || op === 'plus') result = n1 + n2;
-                else if (op === '-' || op === 'minus') result = n1 - n2;
-                else if (op === '*' || op === 'times') result = n1 * n2;
-                else if (op === '/' || op === 'divided by') result = n1 / n2;
-                return `The answer is ${result}.`;
-            }
-        } catch (e) { /* ignore */ }
+      try {
+        const parts = lowerCmd.match(/(\d+) ([\+\-\*\/]|plus|minus|times|divided by) (\d+)/);
+        if (parts) {
+          let n1 = parseInt(parts[1]);
+          let n2 = parseInt(parts[3]);
+          let op = parts[2];
+          let result = 0;
+          if (op === '+' || op === 'plus') result = n1 + n2;
+          else if (op === '-' || op === 'minus') result = n1 - n2;
+          else if (op === '*' || op === 'times') result = n1 * n2;
+          else if (op === '/' || op === 'divided by') result = n1 / n2;
+          return `The answer is ${result}.`;
+        }
+      } catch (e) { /* ignore */ }
     }
 
     // 6. DuckDuckGo Instant Answer (real-world search)
     // Try querying DuckDuckGo for any remaining questions; this keeps results in-app and avoids a link fallback.
     try {
-        const ddgRes = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(command)}&format=json&no_html=1&skip_disambig=1`);
-        if (ddgRes.ok) {
-            const ddgData = await ddgRes.json();
-            if (ddgData.AbstractText && ddgData.AbstractText.length) {
-                return ddgData.AbstractText;
-            }
-            if (ddgData.RelatedTopics && ddgData.RelatedTopics.length) {
-                const texts = ddgData.RelatedTopics.slice(0,3)
-                    .map(t => t.Text || (t.Topics && t.Topics[0] && t.Topics[0].Text))
-                    .filter(Boolean);
-                if (texts.length) return texts.join(' \n');
-            }
+      const ddgRes = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(command)}&format=json&no_html=1&skip_disambig=1`);
+      if (ddgRes.ok) {
+        const ddgData = await ddgRes.json();
+        if (ddgData.AbstractText && ddgData.AbstractText.length) {
+          return ddgData.AbstractText;
         }
+        if (ddgData.RelatedTopics && ddgData.RelatedTopics.length) {
+          const texts = ddgData.RelatedTopics.slice(0, 3)
+            .map(t => t.Text || (t.Topics && t.Topics[0] && t.Topics[0].Text))
+            .filter(Boolean);
+          if (texts.length) return texts.join(' \n');
+        }
+      }
     } catch (e) {
-        logger.error('DuckDuckGo error:', e);
-        // continue to Wikipedia or AI if DDG fails
+      logger.error('DuckDuckGo error:', e);
+      // continue to Wikipedia or AI if DDG fails
     }
 
     // 7. Wikipedia Fallback (Knowledge Base)
     if (lowerCmd.startsWith('who is ') || lowerCmd.startsWith('what is ') || lowerCmd.startsWith('where is ') || lowerCmd.startsWith('tell me about ')) {
-        const topic = lowerCmd.replace(/who is |what is |where is |tell me about /i, '').trim();
-        if (topic && topic.length > 2) {
-            try {
-                logger.info(`Searching Wikipedia for: ${topic}`);
-                const wikiRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topic)}`);
-                if (wikiRes.ok) {
-                    const wikiData = await wikiRes.json();
-                    if (wikiData.extract) {
-                        return wikiData.extract.split('.')[0] + '.'; // Return first sentence/paragraph
-                    }
-                }
-            } catch (e) {
-                logger.error("Wikipedia Error:", e);
+      const topic = lowerCmd.replace(/who is |what is |where is |tell me about /i, '').trim();
+      if (topic && topic.length > 2) {
+        try {
+          logger.info(`Searching Wikipedia for: ${topic}`);
+          const wikiRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topic)}`);
+          if (wikiRes.ok) {
+            const wikiData = await wikiRes.json();
+            if (wikiData.extract) {
+              return wikiData.extract.split('.')[0] + '.'; // Return first sentence/paragraph
             }
+          }
+        } catch (e) {
+          logger.error("Wikipedia Error:", e);
         }
+      }
     }
 
     // ==========================================
@@ -304,30 +338,30 @@ class CommandService {
     // ==========================================
     if (this.openai) {
       try {
-        const now = new Date().toLocaleString('en-US', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric', 
-            hour: 'numeric', 
-            minute: 'numeric', 
-            hour12: true 
+        const now = new Date().toLocaleString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: 'numeric',
+          hour12: true
         });
 
         // Prepare messages for Grok
         const messages = [
-            { 
-                role: "system", 
-                content: `You are AIVA, a calm, intelligent, friendly, and conversational voice assistant inspired by JARVIS.
+          {
+            role: "system",
+            content: `You are AIVA, a calm, intelligent, friendly, and conversational voice assistant inspired by JARVIS.
 Current Date & Time: ${now}
 Always respond naturally, warmly, and with personality. Vary your phrasing so you don't sound robotic or repetitive.
 Be polite, upbeat, and ask follow-up questions when it makes sense.
 Make the user feel like they're talking to a helpful friend.
 Do not repeat the user’s input.
-Be accurate, context-aware, and show a bit of wit or charm when appropriate.` 
-            },
-            ...this.chatHistory,
-            { role: "user", content: command }
+Be accurate, context-aware, and show a bit of wit or charm when appropriate.`
+          },
+          ...this.chatHistory,
+          { role: "user", content: command }
         ];
 
         const completion = await this.openai.chat.completions.create({
@@ -341,21 +375,21 @@ Be accurate, context-aware, and show a bit of wit or charm when appropriate.`
         // Update local history
         this.chatHistory.push({ role: "user", content: command });
         this.chatHistory.push({ role: "assistant", content: text });
-        
+
         // Limit history size
         if (this.chatHistory.length > 20) {
-            this.chatHistory = this.chatHistory.slice(this.chatHistory.length - 20);
+          this.chatHistory = this.chatHistory.slice(this.chatHistory.length - 20);
         }
 
         return text;
       } catch (error) {
         logger.error('Grok API Error:', error);
-        
+
         if (error.status === 401) {
-             return "My AI access key appears to be invalid. Please check my configuration.";
+          return "My AI access key appears to be invalid. Please check my configuration.";
         }
         if (error.status === 429) {
-            return "My connection to the cloud is currently limited due to high traffic.";
+          return "My connection to the cloud is currently limited due to high traffic.";
         }
         return "I'm having trouble connecting to my brain right now. Please try again.";
       }
