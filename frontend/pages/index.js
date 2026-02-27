@@ -177,6 +177,15 @@ export default function Home() {
       setIsSupported(false);
       setStatus("Voice Not Supported");
     }
+
+    // Stop speaking if the user refreshes or closes the page
+    const handleBeforeUnload = () => window.speechSynthesis.cancel();
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.speechSynthesis.cancel();
+    };
   }, []);
 
   const initializeSystem = () => {
@@ -390,6 +399,19 @@ export default function Home() {
     { icon: HelpCircle, label: "Who are you?", cmd: "Who are you?" },
   ];
 
+  // Format basic markdown (bold and italic) safely
+  const formatText = (text) => {
+    if (!text) return { __html: "" };
+    let parsed = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/\n/g, '<br/>');
+    return { __html: parsed };
+  };
+
   return (
     <div className="app-layout">
       <Head>
@@ -502,7 +524,7 @@ export default function Home() {
                 <div key={i} className={`chat-msg ${msg.type}`}>
                   {msg.type === 'bot' && <div className="avatar"><Bot size={16} /></div>}
                   <div className="bubble">
-                    <p>{msg.text}</p>
+                    <p dangerouslySetInnerHTML={formatText(msg.text)} />
                     <div className="timestamp">{msg.time}</div>
                   </div>
                   {msg.type === 'user' && <div className="avatar"><User size={16} /></div>}
