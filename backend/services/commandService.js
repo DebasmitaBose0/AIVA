@@ -737,7 +737,18 @@ class CommandService {
             }
 
             if (snippets.length > 0 || deepResults.length > 0) {
-              webContext = `\n\n=== LIVE INTERNET KNOWLEDGE (Retrieved just now) ===\nYou have real-time internet access. Below are LIVE search results and page content scraped seconds ago. Use them to answer the user accurately.\nCRITICAL RULES:\n1. NEVER say "my training data only goes up to" or "I don't have real-time access" — you DO have real-time access via these results.\n2. NEVER refuse to answer about 2024, 2025, 2026, or 2027 events — the data below contains the latest info.\n3. Synthesize ALL the information (snippets + page content) into a natural, confident answer. Do NOT list them as bullet points or reference them as "search results".\n4. If the data contains specific facts (scores, standings, names, dates), present them directly and confidently.\n5. Prefer the DETAILED PAGE CONTENT over snippets as it contains more accurate and complete information.\n6. If asked about a points table or standings, present the data in a clear, organized format.\n7. CRITICAL: DO NOT HALLUCINATE OR GUESS. If the LIVE INTERNET KNOWLEDGE does not explicitly mention player names, specific shots, or detailed scores, DO NOT invent them. Tell the user what you know from the data, and nothing else.\nWeb Snippets:\n- ${snippets.join('\n- ')}${deepContent}`;
+              webContext = `\n\n=== LIVE INTERNET KNOWLEDGE (Retrieved just now) ===\nYou have real-time internet access. Below are LIVE search results and page content scraped seconds ago. Use them to answer the user accurately.
+CRITICAL RULES:
+1. NEVER say "my training data only goes up to" or "I don't have real-time access" — you DO have real-time access via these results.
+2. NEVER refuse to answer about 2024, 2025, 2026, or 2027 events — the data below contains the latest info.
+3. Synthesize ALL the information into a natural, confident answer.
+4. If the data contains specific facts (scores, standings, names, dates), present them directly.
+5. Prefer the DETAILED PAGE CONTENT over snippets.
+6. If asked about a points table or standings, present the data in a clear, organized format.
+7. CRITICAL: DO NOT HALLUCINATE OR GUESS. If the LIVE INTERNET KNOWLEDGE does not explicitly mention player names or scores for 2026, DO NOT invent them.
+8. DATA INTEGRITY: If the context does NOT contain the specific answer, say "I couldn't find the specific details in the latest reports" rather than making up a list. Note: Virat Kohli retired from T20Is in 2024, so do not include him in 2026 stats unless explicitly found.
+Web Snippets:
+- ${snippets.join('\n- ')}${deepContent}`;
               logger.info(`Web context loaded: ${snippets.length} snippets, ${deepResults.length} deep pages`);
             }
           }
