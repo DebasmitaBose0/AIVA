@@ -15,7 +15,7 @@
 
 - 🗣️ **Voice command input** using Web Speech API (speech recognition)
 - 🔊 **Text-to-speech replies** with dynamic voices
-- 🌍 **Multilingual greetings** — Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi & English
+- 🌍 **Bilingual greetings & interaction** — English and Hindi (featuring 1 Male & 1 Female Hindi voice)
 - 🎯 **Smart voice selection** — voices grouped by language with Indian accent prioritization
 - 🌦️ **Enhanced weather lookup** with OpenWeatherMap & WeatherAPI fallback
 - 🏏 **Live Sports Scores** — CricketData & API-Football integration
