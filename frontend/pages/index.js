@@ -28,6 +28,8 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [startIconIndex, setStartIconIndex] = useState(0);
   const startIcons = [Shield, Mic, Radio, Activity, Globe];
+  const [startBgIndex, setStartBgIndex] = useState(0);
+  const startBackgrounds = ['/aiva_bg1.png', '/aiva_bg2.png'];
   const [isProcessing, setIsProcessing] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
   const [isTextMode, setIsTextMode] = useState(false);
@@ -103,15 +105,23 @@ export default function Home() {
 
   useEffect(() => { voicesRef.current = voices; }, [voices]);
 
-  // Handle start overlays rotating icons
+  // Handle start overlays rotating icons and backgrounds
   useEffect(() => {
     if (!isLoading && !systemStarted) {
-      const interval = setInterval(() => {
+      const iconInterval = setInterval(() => {
         setStartIconIndex(prev => (prev + 1) % startIcons.length);
       }, 1500);
-      return () => clearInterval(interval);
+
+      const bgInterval = setInterval(() => {
+        setStartBgIndex(prev => (prev + 1) % startBackgrounds.length);
+      }, 6000); // Cross-fade background every 6 seconds
+
+      return () => {
+        clearInterval(iconInterval);
+        clearInterval(bgInterval);
+      };
     }
-  }, [isLoading, systemStarted, startIcons.length]);
+  }, [isLoading, systemStarted, startIcons.length, startBackgrounds.length]);
   useEffect(() => {
     voiceRef.current = selectedVoice;
     if (recognitionRef.current && selectedVoice) {
@@ -471,6 +481,15 @@ export default function Home() {
           {/* START OVERLAY */}
           {!systemStarted && (
             <div className="start-overlay">
+              {/* Cycling Backgrounds */}
+              {startBackgrounds.map((bg, idx) => (
+                <div
+                  key={bg}
+                  className={`start-bg-layer ${idx === startBgIndex ? 'active' : ''}`}
+                  style={{ backgroundImage: `url(${bg})` }}
+                />
+              ))}
+
               <div className="start-content">
                 <div className="start-icon-container">
                   {startIcons.map((Icon, idx) => (
