@@ -17,6 +17,8 @@ AIVA is a full-stack, JARVIS-inspired web-based voice assistant. It delivers an 
 - 📰 Live News & Headlines *(GNews API)*
 - 🌐 **Real-Time Web Search** *(DuckDuckGo HTML scraping)* — enables answering about any current event
 - 🤖 Conversational AI via **Llama 3.3 70B** (Groq) with internet-augmented responses
+- 🎙️ **Wake Word Listener** — Say "Hey AIVA" for hands-free interaction
+- 🎭 **Facial Mood Recognition** — Capture a photo via camera and let AIVA's personality adapt to your mood (Powered by Gemini)
 - ⌨️ **Text/Type Mode** — switch between voice and keyboard input
 
 ---
@@ -56,6 +58,12 @@ AIVA uses multiple APIs working together. Each serves a specific role:
 |-----|---------|---------|
 | `NEWS_API_KEY` | [GNews.io](https://gnews.io/) | Fetches the latest news headlines when you ask for news. Returns top 5 headlines with titles. |
 
+### 🎭 Vision & Personality API
+
+| Key | Service | Purpose |
+|-----|---------|---------|
+| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/) | Powers **Facial Mood Recognition**. Analyzes images captured by the user's camera to determine their mood (Happy, Sad, etc.) and adjust AIVA's personality. |
+
 ### 🌐 Web Search (No API Key Needed)
 
 | Service | Purpose |
@@ -74,7 +82,8 @@ The backend securely processes commands, interacts with external APIs, and manag
 |------|-----------|
 | 🟢 `backend/server.js` | Entry point — port config (`5000`), CORS, JSON parsing, routes |
 | 🛣️ `backend/routes/voice.js` | `POST /api/voice` endpoint — validates payload, delegates to commandService |
-| 🧠 `backend/services/commandService.js` | **Core brain** — multilingual greetings, time/date, weather (dual API), live cricket scores, live football scores, news headlines, web search RAG, and Groq AI with rolling 20-message context |
+| 🧠 `backend/services/commandService.js` | **Core brain** — multilingual greetings, time/date, weather (dual API), live scores, news, web search RAG, and Groq AI |
+| 👁️ `backend/services/visionService.js` | **Visual brain** — mood detection using Gemini Vision API |
 | 📝 `backend/logger.js` | Winston logger — records events/errors to `backend/logs/` |
 | 🔒 `backend/middleware/auth.js` | API key authentication — checks `x-api-key` header (bypassed in dev) |
 | ⚙️ `backend/.env` | Environment variables — all API keys (see below) |
@@ -144,6 +153,9 @@ SPORTS_API_KEY=your_api_football_key_here
 
 # News (REQUIRED for news commands)
 NEWS_API_KEY=your_gnews_key_here
+
+# Vision (REQUIRED for Mood Scan)
+GEMINI_API_KEY=your_gemini_vision_key_here
 ```
 
 ### 3️⃣ Start the System
@@ -182,7 +194,7 @@ User speaks or types a command
         ▼
 ┌─── Local Commands (instant, no API) ──────────────┐
 │  Time, Date, Greetings, Identity, Jokes,           │
-│  App controls, Voice changes, Mode switching       │
+│  Wake Word (Hey AIVA) detection, Voice changes     │
 └────────────────────────────────────────────────────┘
         │ (not matched?)
         ▼
@@ -219,6 +231,8 @@ User speaks or types a command
 | 📋 **Copy Chat** | Copies full conversation to clipboard |
 | 🗑️ **Clear Chat** | Wipes session history |
 | 🎙️ **Mic/Voice Toggle** | Tap to start/stop listening |
+| 🔊 **Wake Word** | Enable continuous "Hey AIVA" listening in the navbar |
+| 🎭 **Mood Scan** | AI personality adjustment based on your face |
 | ⌨️ **Text Mode** | Say "enable text mode" or click the status bar to type |
 | 💡 **Suggestion Chips** | Quick commands — time, date, weather, jokes, identity |
 | 🔊 **Voice Selector** | Choose from available voices grouped by language |
