@@ -215,7 +215,7 @@ class CommandService {
     }
     if (lowerCmd.includes('what can you do') || lowerCmd.includes('help') || lowerCmd.includes('how can you assist')) {
       return this.randomResponse([
-        "I can fetch info, answer questions, control devices, and keep you company. Just ask! 😄",
+        "I can fetch info, answer questions, assist you, and keep you company. Just ask! 😄",
         "From telling jokes to organizing your day — I'm here for you. 💡",
       ]);
     }
