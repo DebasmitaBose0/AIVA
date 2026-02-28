@@ -237,6 +237,42 @@ User speaks or types a command
 
 ---
 
+## 🌍 Deployment
+
+### 🔙 Backend (Node/Express)
+1.  **Platform:** [Render](https://render.com/) or Railway.
+2.  **Root Dir:** `backend`
+3.  **Build Command:** `npm install`
+4.  **Start Command:** `npm start`
+5.  **Environment Variables:** Add all `.env` keys (Groq, OpenWeather, etc.) in the dashboard.
+    - **`API_KEY`**: (Custom) - Your secret AIVA password.
+
+### 🖥️ Frontend (Next.js)
+1.  **Platform:** [Vercel](https://vercel.com/) (Recommended).
+2.  **Root Dir:** `frontend`
+3.  **Build Command:** `next build`
+4.  **Environment Variables:**
+    - **`NEXT_PUBLIC_API_KEY`**: (Custom) - MUST match the Backend's `API_KEY`.
+    - **`BACKEND_URL`**: Your Render URL (e.g., `https://your-aiva-backend.onrender.com`).
+
+### 🔗 Connecting the Frontend & Backend
+
+To allow your AIVA Frontend to securely talk to your Backend, you must set up a "secret handshake":
+
+1.  **Set Backend Password:** 
+    - In your **Render Dashboard**, add an environment variable named **`API_KEY`**.
+    - Set its value to any secret password you like (e.g., `MySecretAIVA123`).
+2.  **Set Frontend Password:** 
+    - In your **Vercel Dashboard**, add an environment variable named **`NEXT_PUBLIC_API_KEY`**.
+    - Set its value to the **EXACT SAME** password you used in the Backend.
+3.  **Establish URL Connection:** 
+    - In your **Vercel Dashboard**, add another environment variable named **`BACKEND_URL`**.
+    - Set its value to your **Render Web Service URL** (e.g., `https://your-aiva-backend.onrender.com`).
+
+Once these three variables are set, your AIVA portal will be securely connected and ready for use!
+
+---
+
 ## 🔒 Security Notes
 
 - All API keys are stored in `backend/.env` which is listed in `.gitignore` — they are **never pushed to GitHub**.
