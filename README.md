@@ -21,11 +21,10 @@
 - 🏏 **Live Sports Scores** — CricketData & API-Football integration
 - 📰 **Headlines Delivery** via GNews API
 - ⌨️ **Dynamic Input Modes** — Switch between Voice Mode and Text/Type Mode by speaking (e.g., "enable type mode")
-- 💬 **Chat-centric UI** — mic embedded in input bar, suggestion chips, timestamps, copy/clear
+- 💬 **Chat-centric UI** — mic embedded in input bar, suggestion chips, timestamps, individual message copy, clear chat
 - 🔒 **Secure API** via `x-api-key` header (bypassed in dev mode)
 - 🎨 **Futuristic theme** — glassmorphism, neon glows, hacker-style boot loader
 - 🧠 **AI Powered** — Llama 3.3 70B through Groq API
-- 🔊 **Wake Word Listener** — Active "Hey AIVA" recognition for hands-free start
 - 🎭 **Facial Mood Recognition** — Analyze your face via camera to adjust AIVA's personality (Powered by Gemini Vision)
 - 🎭 **Lucide Icons** — professional icon set throughout the UI
 
