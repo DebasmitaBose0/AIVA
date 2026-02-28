@@ -13,15 +13,16 @@ router.post("/", auth, async (req, res) => {
     }
 
     const result = await commandService.processCommand(command);
-    
+
     if (typeof result === 'object' && result.text) {
-        res.json({ 
-            response: result.text, 
-            action: result.action, 
-            voiceName: result.voiceName 
-        });
+      res.json({
+        response: result.text,
+        action: result.action,
+        voiceName: result.voiceName,
+        pendingAction: result.pendingAction
+      });
     } else {
-        res.json({ response: result });
+      res.json({ response: result });
     }
   } catch (error) {
     console.error("Error processing command:", error);
