@@ -32,13 +32,12 @@ export default function Home() {
   const startBackgrounds = ['/aiva_bg1.png', '/aiva_bg2.png'];
   const [isProcessing, setIsProcessing] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
-  const [isWakeWordActive, setIsWakeWordActive] = useState(false);
-  const wakeWordRecRef = useRef(null);
   const [showMoodCam, setShowMoodCam] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [moodLoading, setMoodLoading] = useState(false);
   const [textInput, setTextInput] = useState("");
+  const [isTextMode, setIsTextMode] = useState(false);
 
   const languageNames = {
     hi: 'Hindi', en: 'English'
@@ -49,6 +48,8 @@ export default function Home() {
   const recognitionRef = useRef(null);
   const silenceTimerRef = useRef(null);
   const transcriptRef = useRef("");
+  const lastUserCommand = useRef("");
+  const lastUserTime = useRef(0);
 
   // Scroll chat to bottom
   useEffect(() => {
@@ -243,42 +244,6 @@ export default function Home() {
     };
   }, []);
 
-  // Wake Word Effect
-  useEffect(() => {
-    if (isWakeWordActive && systemStarted && !isListening && !isProcessing) {
-      startWakeWordListener();
-    } else {
-      stopWakeWordListener();
-    }
-    return () => stopWakeWordListener();
-  }, [isWakeWordActive, systemStarted, isListening, isProcessing]);
-
-  const startWakeWordListener = () => {
-    if (!("webkitSpeechRecognition" in window)) return;
-    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const rec = new SpeechRec();
-    rec.continuous = true; rec.interimResults = true; rec.lang = "en-US";
-    rec.onresult = (event) => {
-      const text = Array.from(event.results).map(r => r[0].transcript).join('').toLowerCase();
-      if (text.includes("hey aiva") || text.includes("hey i wa")) {
-        rec.stop();
-        toggleMic(); // Trigger main listening
-      }
-    };
-    rec.onerror = () => { if (isWakeWordActive) setTimeout(startWakeWordListener, 1000); };
-    rec.onend = () => { if (isWakeWordActive && !isListening) rec.start(); };
-    wakeWordRecRef.current = rec;
-    try { rec.start(); } catch (e) { }
-  };
-
-  const stopWakeWordListener = () => {
-    if (wakeWordRecRef.current) {
-      wakeWordRecRef.current.onend = null;
-      wakeWordRecRef.current.stop();
-      wakeWordRecRef.current = null;
-    }
-  };
-
   const runMoodScan = async () => {
     setShowMoodCam(true);
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -379,9 +344,6 @@ export default function Home() {
   };
 
   // Dedup guard
-  const lastUserCommand = useRef('');
-  const lastUserTime = useRef(0);
-
   const processCommand = async (command) => {
     const now = Date.now();
     if (command === lastUserCommand.current && now - lastUserTime.current < 1500) return;
@@ -609,11 +571,6 @@ export default function Home() {
               <span>{status}</span>
             </div>
             <div className="navbar-right">
-              {/* Wake Word Toggle */}
-              <div className={`wake-word-control ${isWakeWordActive ? 'active' : ''}`} onClick={() => setIsWakeWordActive(!isWakeWordActive)} title="Wake Word (Hey AIVA)">
-                <Radio size={14} className={isWakeWordActive ? 'icon-pulse' : ''} />
-                <span>Wake Word</span>
-              </div>
               <Volume2 size={14} className="voice-icon" />
               <select className="navbar-voice-select" id="voice-selector" onChange={handleVoiceChange} value={selectedVoice?.name || ""}>
                 {voices.length === 0 && <option>Loading...</option>}
@@ -697,7 +654,10 @@ export default function Home() {
                       ) : (
                         <p dangerouslySetInnerHTML={formatText(msg.text)} />
                       )}
-                      <div className="timestamp">{msg.time}</div>
+                      <div className="msg-actions">
+                        <button className="copy-msg-btn" onClick={() => navigator.clipboard.writeText(msg.text)} title="Copy message"><Copy size={12} /></button>
+                        <div className="timestamp">{msg.time}</div>
+                      </div>
                     </div>
                     {msg.type === 'user' && <div className={`avatar ${isProcessing && i === chatHistory.length - 1 ? 'avatar-active' : ''}`}><User size={16} /></div>}
                   </div>
