@@ -58,6 +58,23 @@
 
 ---
 
+## 🌍 Deployment
+
+### 🔙 Backend (Express)
+1.  **Platform:** [Render](https://render.com/) or Railway.
+2.  **Build Command:** `npm install`
+3.  **Start Command:** `npm start`
+4.  **Environment Variables:** Add all `.env` keys in the dashboard.
+    - **`API_KEY`**: Set your custom AIVA security password here.
+
+### 🖥️ Frontend (Next.js)
+1.  **Platform:** [Vercel](https://vercel.com/) (Recommended).
+2.  **Environment Variables:**
+    - **`NEXT_PUBLIC_API_KEY`**: Set the EXACT same password you used in the Backend (`API_KEY`).
+    - **`BACKEND_URL`**: The URL provided by Render (e.g., `https://your-aiva-backend.onrender.com`).
+
+---
+
 ## 🔌 API Endpoints
 
 | Method | Endpoint | Description |
