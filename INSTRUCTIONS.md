@@ -17,8 +17,7 @@ AIVA is a full-stack, JARVIS-inspired web-based voice assistant. It delivers an 
 - 📰 Live News & Headlines *(GNews API)*
 - 🌐 **Real-Time Web Search** *(DuckDuckGo HTML scraping)* — enables answering about any current event
 - 🤖 Conversational AI via **Llama 3.3 70B** (Groq) with internet-augmented responses
-- 🎙️ **Wake Word Listener** — Say "Hey AIVA" for hands-free interaction
-- 🎭 **Facial Mood Recognition** — Capture a photo via camera and let AIVA's personality adapt to your mood (Powered by Gemini)
+-  **Facial Mood Recognition** — Capture a photo via camera and let AIVA's personality adapt to your mood (Powered by Gemini)
 - ⌨️ **Text/Type Mode** — switch between voice and keyboard input
 
 ---
@@ -194,7 +193,7 @@ User speaks or types a command
         ▼
 ┌─── Local Commands (instant, no API) ──────────────┐
 │  Time, Date, Greetings, Identity, Jokes,           │
-│  Wake Word (Hey AIVA) detection, Voice changes     │
+│  Voice changes                                     │
 └────────────────────────────────────────────────────┘
         │ (not matched?)
         ▼
@@ -228,11 +227,11 @@ User speaks or types a command
 
 | Control | 📋 Action |
 |---------|----------|
-| 📋 **Copy Chat** | Copies full conversation to clipboard |
+| 📋 **Copy Chat** | Copies full conversation to clipboard (bottom right) |
 | 🗑️ **Clear Chat** | Wipes session history |
 | 🎙️ **Mic/Voice Toggle** | Tap to start/stop listening |
-| 🔊 **Wake Word** | Enable continuous "Hey AIVA" listening in the navbar |
 | 🎭 **Mood Scan** | AI personality adjustment based on your face |
+| 📋 **Copy Message** | Find the small copy button on individual message bubbles |
 | ⌨️ **Text Mode** | Say "enable text mode" or click the status bar to type |
 | 💡 **Suggestion Chips** | Quick commands — time, date, weather, jokes, identity |
 | 🔊 **Voice Selector** | Choose from available voices grouped by language |
