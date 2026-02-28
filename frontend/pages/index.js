@@ -32,7 +32,12 @@ export default function Home() {
   const startBackgrounds = ['/aiva_bg1.png', '/aiva_bg2.png'];
   const [isProcessing, setIsProcessing] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
-  const [isTextMode, setIsTextMode] = useState(false);
+  const [isWakeWordActive, setIsWakeWordActive] = useState(false);
+  const wakeWordRecRef = useRef(null);
+  const [showMoodCam, setShowMoodCam] = useState(false);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [moodLoading, setMoodLoading] = useState(false);
   const [textInput, setTextInput] = useState("");
 
   const languageNames = {
@@ -238,6 +243,85 @@ export default function Home() {
     };
   }, []);
 
+  // Wake Word Effect
+  useEffect(() => {
+    if (isWakeWordActive && systemStarted && !isListening && !isProcessing) {
+      startWakeWordListener();
+    } else {
+      stopWakeWordListener();
+    }
+    return () => stopWakeWordListener();
+  }, [isWakeWordActive, systemStarted, isListening, isProcessing]);
+
+  const startWakeWordListener = () => {
+    if (!("webkitSpeechRecognition" in window)) return;
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const rec = new SpeechRec();
+    rec.continuous = true; rec.interimResults = true; rec.lang = "en-US";
+    rec.onresult = (event) => {
+      const text = Array.from(event.results).map(r => r[0].transcript).join('').toLowerCase();
+      if (text.includes("hey aiva") || text.includes("hey i wa")) {
+        rec.stop();
+        toggleMic(); // Trigger main listening
+      }
+    };
+    rec.onerror = () => { if (isWakeWordActive) setTimeout(startWakeWordListener, 1000); };
+    rec.onend = () => { if (isWakeWordActive && !isListening) rec.start(); };
+    wakeWordRecRef.current = rec;
+    try { rec.start(); } catch (e) { }
+  };
+
+  const stopWakeWordListener = () => {
+    if (wakeWordRecRef.current) {
+      wakeWordRecRef.current.onend = null;
+      wakeWordRecRef.current.stop();
+      wakeWordRecRef.current = null;
+    }
+  };
+
+  const runMoodScan = async () => {
+    setShowMoodCam(true);
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+      setTimeout(async () => {
+        if (canvasRef.current && videoRef.current) {
+          const ctx = canvasRef.current.getContext('2d');
+          ctx.drawImage(videoRef.current, 0, 0, 300, 200);
+          const image = canvasRef.current.toDataURL('image/jpeg');
+          stream.getTracks().forEach(t => t.stop());
+          setShowMoodCam(false);
+          setMoodLoading(true);
+          try {
+            const res = await fetch("/api/voice/mood", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
+              body: JSON.stringify({ image })
+            });
+            const data = await res.json();
+            if (data.response) {
+              // Handle mood-based personality change
+              if (data.voiceProfile === 'Energetic' || data.mood === 'HAPPY') {
+                const hv = voices.find(v => v.lang.startsWith('hi'));
+                if (hv) { setSelectedVoice(hv); voiceRef.current = hv; }
+              } else if (data.voiceProfile === 'Soothing' || data.mood === 'SAD') {
+                const sv = voices.find(v => v.name.includes('Zira') || v.name.includes('Samantha'));
+                if (sv) { setSelectedVoice(sv); voiceRef.current = sv; }
+              }
+              finishResponse(data.response);
+            }
+          } catch (e) {
+            finishResponse("I couldn't identify your mood today, but you look great! 😄");
+          }
+          setMoodLoading(false);
+        }
+      }, 3000); // 3 seconds to "look" at the camera
+    }
+  };
+
   const initializeSystem = () => {
     setSystemStarted(true);
     setStatus("System Online");
@@ -371,6 +455,11 @@ export default function Home() {
           if (mv && mv.name !== selectedVoice?.name) { setSelectedVoice(mv); voiceRef.current = mv; }
         }
 
+        // Handle Redirects
+        if (data.action === 'REDIRECT' && data.url) {
+          window.open(data.url, '_blank');
+        }
+
         finishResponse(data.response);
       } else {
         finishResponse("Error processing command.");
@@ -440,17 +529,17 @@ export default function Home() {
 
   const features = [
     { icon: Mic, title: "Voice Control", desc: "Natural speech input" },
-    { icon: Monitor, title: "System Control", desc: "Open apps, volume, brightness" },
+    { icon: Globe, title: "Smart Search", desc: "Real-time web browsing" },
     { icon: CloudSun, title: "Live Weather", desc: "City-level accuracy" },
     { icon: Cpu, title: "AI Powered", desc: "Llama 3.3 70B via Groq" },
+    { icon: Laugh, title: "Mood Scan", desc: "AI personality based on your face", action: runMoodScan },
   ];
 
   const suggestions = [
     { icon: Clock, label: "What time is it?", cmd: "What is the time?" },
     { icon: CloudSun, label: "Weather in Delhi", cmd: "What is the weather in Delhi?" },
-    { icon: Battery, label: "Battery status", cmd: "What is my battery percentage?" },
-    { icon: Volume2, label: "Set volume 50%", cmd: "Set volume to 50%" },
-    { icon: Monitor, label: "Open Camera", cmd: "Open camera" },
+    { icon: Globe, label: "Latest News", cmd: "Give me the latest news headlines" },
+    { icon: Laugh, label: "Tell me a joke", cmd: "Tell me a joke" },
   ];
 
   // Format basic markdown (bold and italic) safely
@@ -520,6 +609,11 @@ export default function Home() {
               <span>{status}</span>
             </div>
             <div className="navbar-right">
+              {/* Wake Word Toggle */}
+              <div className={`wake-word-control ${isWakeWordActive ? 'active' : ''}`} onClick={() => setIsWakeWordActive(!isWakeWordActive)} title="Wake Word (Hey AIVA)">
+                <Radio size={14} className={isWakeWordActive ? 'icon-pulse' : ''} />
+                <span>Wake Word</span>
+              </div>
               <Volume2 size={14} className="voice-icon" />
               <select className="navbar-voice-select" id="voice-selector" onChange={handleVoiceChange} value={selectedVoice?.name || ""}>
                 {voices.length === 0 && <option>Loading...</option>}
@@ -548,8 +642,8 @@ export default function Home() {
             {features.map((f, i) => {
               const Icon = f.icon;
               return (
-                <div className="feature-chip" key={i}>
-                  <Icon size={20} className="chip-icon" />
+                <div className="feature-chip" key={i} onClick={f.action} style={f.action ? { cursor: 'pointer' } : {}}>
+                  <Icon size={20} className={`chip-icon ${f.title === 'Mood Scan' && moodLoading ? 'icon-pulse' : ''}`} />
                   <div className="chip-text">
                     <h4>{f.title}</h4>
                     <p>{f.desc}</p>
@@ -609,6 +703,18 @@ export default function Home() {
                   </div>
                 );
               })}
+
+              {/* Hidden Cam for Mood Scan */}
+              {showMoodCam && (
+                <div className="mood-cam-overlay">
+                  <div className="mood-cam-window">
+                    <video ref={videoRef} autoPlay muted playsInline></video>
+                    <div className="mood-cam-scanning"></div>
+                    <p>Establishing Eye Contact...</p>
+                  </div>
+                </div>
+              )}
+              <canvas ref={canvasRef} style={{ display: 'none' }} width="300" height="200"></canvas>
 
               {isProcessing && (
                 <div className="chat-msg bot">
