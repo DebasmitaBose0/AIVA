@@ -307,7 +307,29 @@ export default function Home() {
     lastUserCommand.current = command;
     lastUserTime.current = now;
 
-    addMessage('user', command);
+    // Intelligent frontend auto-punctuation for voice/text inputs
+    let punctuatedCommand = command.trim();
+    if (!/[.!?]$/.test(punctuatedCommand)) {
+      const questionWords = ['what', 'when', 'where', 'who', 'whom', 'which', 'whose', 'why', 'how', 'is', 'are', 'do', 'does', 'did', 'can', 'could', 'should', 'would', 'will', 'shall', 'may', 'might'];
+      const exclamatoryWords = ['wow', 'amazing', 'great', 'awesome', 'terrible', 'horrible', 'damn', 'fuck', 'shit', 'omg', 'yay', 'hurray', 'gosh', 'insane', 'crazy', 'unbelievable', 'wtf'];
+
+      const firstWord = punctuatedCommand.split(' ')[0].toLowerCase();
+
+      const isQuestion = questionWords.includes(firstWord);
+      const isExclamatory = exclamatoryWords.some(w => punctuatedCommand.toLowerCase().includes(w));
+
+      if (isQuestion && isExclamatory) {
+        punctuatedCommand += '?!';
+      } else if (isQuestion) {
+        punctuatedCommand += '?';
+      } else if (isExclamatory) {
+        punctuatedCommand += '!';
+      } else {
+        punctuatedCommand += '.';
+      }
+    }
+
+    addMessage('user', punctuatedCommand);
 
     const lower = command.toLowerCase();
 
@@ -342,7 +364,7 @@ export default function Home() {
       const res = await fetch("/api/voice", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
-        body: JSON.stringify({ command })
+        body: JSON.stringify({ command: punctuatedCommand })
       });
       let data;
       try { data = await res.json(); } catch { data = null; }
@@ -412,7 +434,26 @@ export default function Home() {
     window.speechSynthesis.cancel();
 
     // Clean up Markdown symbols so the TTS doesn't say "asterisk" or "hash"
-    const cleanedText = text.replace(/[*#_`~[\]=+\-]/g, '').trim();
+    // Also remove emojis so it doesn't try to spell "smiling face with sunglasses"
+    let cleanedText = text.replace(/[*#_`~[\]=+\-]/g, '').trim();
+    cleanedText = cleanedText.replace(/[\u{1F600}-\u{1F64F}]/gu, ''); // Emoticons
+    cleanedText = cleanedText.replace(/[\u{1F300}-\u{1F5FF}]/gu, ''); // Misc Symbols and Pictographs
+    cleanedText = cleanedText.replace(/[\u{1F680}-\u{1F6FF}]/gu, ''); // Transport and Map
+    cleanedText = cleanedText.replace(/[\u{1F700}-\u{1F77F}]/gu, ''); // Alchemical Symbols
+    cleanedText = cleanedText.replace(/[\u{1F780}-\u{1F7FF}]/gu, ''); // Geometric Shapes Extended
+    cleanedText = cleanedText.replace(/[\u{1F800}-\u{1F8FF}]/gu, ''); // Supplemental Arrows-C
+    cleanedText = cleanedText.replace(/[\u{1F900}-\u{1F9FF}]/gu, ''); // Supplemental Symbols and Pictographs
+    cleanedText = cleanedText.replace(/[\u{1FA00}-\u{1FA6F}]/gu, ''); // Chess Symbols
+    cleanedText = cleanedText.replace(/[\u{1FA70}-\u{1FAFF}]/gu, ''); // Symbols and Pictographs Extended-A
+    cleanedText = cleanedText.replace(/[\u{2600}-\u{26FF}]/gu, ''); // Misc symbols
+    cleanedText = cleanedText.replace(/[\u{2700}-\u{27BF}]/gu, ''); // Dingbats
+
+    // Prevent English/Hindi TTS voices from attempting to speak natively generated Indian texts (like Bengali) via fallback
+    if (/[\u0980-\u09FF\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\u0A80-\u0AFF]/.test(cleanedText)) {
+      // Disable TTS for non-Hindi/English responses to prevent broken phonetic reading
+      console.log("Muted unsupported TTS language block.");
+      return;
+    }
 
     const u = new SpeechSynthesisUtterance(cleanedText);
     const v = voiceRef.current;
@@ -461,12 +502,27 @@ export default function Home() {
   ];
 
   // Format basic markdown (bold and italic) safely
-  const formatText = (text) => {
+  const formatText = (text, isAnimating = false) => {
     if (!text) return { __html: "" };
     let parsed = text
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
+      .replace(/>/g, '&gt;');
+
+    // Inject blur-to-clear typing animation class onto the newest revealed word
+    if (isAnimating) {
+      const words = parsed.split(' ');
+      if (words.length > 0) {
+        const lastWord = words.pop();
+        if (lastWord.trim()) {
+          parsed = `${words.join(' ')} <span class="typing-blur-word">${lastWord}</span>`;
+        } else {
+          parsed = `${words.join(' ')} `; // Handle empty spaces safely
+        }
+      }
+    }
+
+    parsed = parsed
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       .replace(/\n/g, '<br/>');
@@ -606,9 +662,9 @@ export default function Home() {
                     {msg.type === 'bot' && <div className={`avatar ${isAnimating || isProcessing ? 'avatar-active' : ''}`}><Bot size={16} /></div>}
                     <div className="bubble">
                       {msg.type === 'bot' ? (
-                        <p className={isAnimating ? 'typewriter-text' : ''} dangerouslySetInnerHTML={formatText(displayText)} />
+                        <p className={isAnimating ? 'typewriter-text' : ''} dangerouslySetInnerHTML={formatText(displayText, isAnimating)} />
                       ) : (
-                        <p dangerouslySetInnerHTML={formatText(msg.text)} />
+                        <p dangerouslySetInnerHTML={formatText(msg.text, false)} />
                       )}
                       <div className="msg-actions">
                         <button className="copy-msg-btn" onClick={() => navigator.clipboard.writeText(msg.text)} title="Copy message"><Copy size={12} /></button>
