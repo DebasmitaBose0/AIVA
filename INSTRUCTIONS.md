@@ -10,14 +10,16 @@ AIVA is a full-stack, JARVIS-inspired web-based voice assistant. It delivers an 
 
 🧠 The assistant handles:
 - 💬 General conversations & conversational AI
-- 🌍 Complete fluency in **English** and **Hindi** (featuring distinct Male & Female Hindi voices)
+- 🌍 Vast fluency in **English** alongside native regional support for **Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, and Urdu** directly tied to OS voices.
 - ⏰ Current time & date
 - 🌦️ Weather information *(OpenWeatherMap + WeatherAPI fallback)*
 - 🏏 **Live Sports Scores** *(CricketData + API-Football)* — real-time, ball-by-ball
 - 📰 Live News & Headlines *(GNews API)*
 - 🌐 **Real-Time Web Search** *(DuckDuckGo HTML scraping)* — enables answering about any current event
-- 🤖 Conversational AI via **Llama 3.3 70B** (Groq) with internet-augmented responses
--  **Facial Mood Recognition** — Capture a photo via camera and let AIVA's personality adapt to your mood (Powered by Gemini)
+- 🤖 **Universal Conversational AI** — Uses **Gemini 1.5 Flash** as primary engine, intelligently falling back to **Llama 3.3 70B** (Groq) if quotas are exceeded
+- 💻 **Native OS Control (Windows)** — Command AIVA to mute volume, lock screen, sleep PC, or empty the recycle bin
+- 📧 **Smart Email Drafting** — Tell AIVA to draft an email; it generates the content and opens your mail client ready to send
+- 🎭 **Facial Mood Recognition** — Capture a photo via camera and let AIVA's personality adapt to your mood (Powered by Gemini)
 - ⌨️ **Text/Type Mode** — switch between voice and keyboard input
 
 ---
@@ -30,7 +32,8 @@ AIVA uses multiple APIs working together. Each serves a specific role:
 
 | Key | Service | Purpose |
 |-----|---------|---------|
-| `GROQ_API_KEY` | [Groq Cloud](https://console.groq.com) | Powers AIVA's conversational AI brain (Llama 3.3 70B). **Required** — without this, the assistant cannot think or respond. |
+| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/) | **Primary AI Engine** -> Powers AIVA's conversational brain and Mood Scan image analysis. High quota, extremely fast. |
+| `GROQ_API_KEY` | [Groq Cloud](https://console.groq.com) | **Secondary AI Engine** -> Fallback engine (Llama 3.3) used automatically if Gemini's API limit is exceeded or unresponsive. |
 
 ### 🌦️ Weather APIs (Primary + Fallback)
 
@@ -57,11 +60,11 @@ AIVA uses multiple APIs working together. Each serves a specific role:
 |-----|---------|---------|
 | `NEWS_API_KEY` | [GNews.io](https://gnews.io/) | Fetches the latest news headlines when you ask for news. Returns top 5 headlines with titles. |
 
-### 🎭 Vision & Personality API
+### 🎭 Vision & Personality
 
 | Key | Service | Purpose |
 |-----|---------|---------|
-| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/) | Powers **Facial Mood Recognition**. Analyzes images captured by the user's camera to determine their mood (Happy, Sad, etc.) and adjust AIVA's personality. |
+| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/) | This same key also powers **Facial Mood Recognition**. Analyzes images captured by the user's camera to determine their mood (Happy, Sad, etc.) and naturally injects it into AIVA's personality. |
 
 ### 🌐 Web Search (No API Key Needed)
 
@@ -81,7 +84,8 @@ The backend securely processes commands, interacts with external APIs, and manag
 |------|-----------|
 | 🟢 `backend/server.js` | Entry point — port config (`5000`), CORS, JSON parsing, routes |
 | 🛣️ `backend/routes/voice.js` | `POST /api/voice` endpoint — validates payload, delegates to commandService |
-| 🧠 `backend/services/commandService.js` | **Core brain** — multilingual greetings, time/date, weather (dual API), live scores, news, web search RAG, and Groq AI |
+| 🧠 `backend/services/commandService.js` | **Core brain** — local phrases, weather, live scores, news, web search RAG, and dual-routing AI (Gemini + Groq) |
+| 🗃️ `backend/data/responses.json` | **Offline Lexicon** — stores hundreds of standard greetings and small-talk to bypass API calls (saving limits) |
 | 👁️ `backend/services/visionService.js` | **Visual brain** — mood detection using Gemini Vision API |
 | 📝 `backend/logger.js` | Winston logger — records events/errors to `backend/logs/` |
 | 🔒 `backend/middleware/auth.js` | API key authentication — checks `x-api-key` header (bypassed in dev) |
@@ -139,7 +143,8 @@ Then edit `backend/.env` with your keys:
 # Server
 PORT=5000
 
-# AI Brain (REQUIRED)
+# AI Brain (REQUIRED: At least one)
+GEMINI_API_KEY=your_gemini_key_here
 GROQ_API_KEY=your_groq_api_key_here
 
 # Weather (REQUIRED for weather commands)
@@ -153,8 +158,6 @@ SPORTS_API_KEY=your_api_football_key_here
 # News (REQUIRED for news commands)
 NEWS_API_KEY=your_gnews_key_here
 
-# Vision (REQUIRED for Mood Scan)
-GEMINI_API_KEY=your_gemini_vision_key_here
 ```
 
 ### 3️⃣ Start the System
@@ -191,9 +194,15 @@ Understanding the command processing pipeline:
 User speaks or types a command
         │
         ▼
-┌─── Local Commands (instant, no API) ──────────────┐
-│  Time, Date, Greetings, Identity, Jokes,           │
-│  Voice changes                                     │
+┌─── Local Commands (Offline / responses.json) ─────┐
+│  Time, Date, Identity, Greetings (Hi, Hello),      │
+│  Small Talk, Jokes, Voice changes (No API Call)     │
+└────────────────────────────────────────────────────┘
+        │ (not matched?)
+        ▼
+┌─── Desktop Environment (Browser Redirects & OS) ──┐
+│  Open YouTube, Draft Emails natively, and Windows  │
+│  OS Controls (Mute volume, Empty Recycle Bin, Sleep)│
 └────────────────────────────────────────────────────┘
         │ (not matched?)
         ▼
@@ -213,11 +222,11 @@ User speaks or types a command
 └────────────────────────────────────────────────────┘
         │ (not a news query?)
         ▼
-┌─── AI + Live Web Search (RAG) ────────────────────┐
+┌─── Dual AI + Live Web Search (RAG) ───────────────┐
 │  1. Scrape DuckDuckGo for 5 live web snippets      │
-│  2. Inject snippets into Llama 3.3 system prompt   │
-│  3. AI synthesizes a natural, informed response     │
-│  → Handles ALL remaining queries with web context   │
+│  2. Format into strict real-time context prompt    │
+│  3. Call Gemini (Primary). If fail -> Call Groq    │
+│  → Handles ALL remaining queries comprehensively    │
 └────────────────────────────────────────────────────┘
 ```
 
@@ -244,9 +253,35 @@ User speaks or types a command
 |---------|---------
 | 🌐 Frontend URL | `http://localhost:3000` |
 | 🔙 Backend URL | `http://localhost:5000` |
-| 🤖 AI Model | `llama-3.3-70b-versatile` (Groq) |
+| 🤖 AI Model | `Gemini 1.5 Flash` (Primary) / `Llama 3.3 70B` (Fallback) |
 | 🧪 Health Check | `GET http://localhost:5000/health` |
 | 👥 Creators | Debasmita Bose & Babin Bid |
+
+---
+
+## 💻 Native Desktop Integration & Email Drafting
+
+AIVA features powerful capabilities to directly control your Windows Desktop and natively draft your emails. Here is how it is built and how to use it.
+
+### 📧 Smart Email Drafting (Native `mailto` Implementation)
+Instead of forcing the user to configure complicated Google Cloud / OAuth2 setups, AIVA uses a much more secure and seamless method. 
+**How to use it:** 
+1. Say or type: *"AIVA, draft an email to my boss saying I'll be 10 minutes late."*
+2. AIVA intercepts the "draft email" phrase.
+3. It passes the prompt directly to Gemini or Groq to synthesize a professional email body.
+4. It redirects your browser using a `mailto:?body=...` URI.
+5. Your default OS email client (or Gmail Web app) opens automatically with the entire email written for you.
+6. **You review it and click 'Send'!**
+
+*(This method requires absolutely $0 server setup, needs no tokens, and is completely privacy-first because AIVA does not need the password to your inbox!)*
+
+### 🚀 Windows OS Controls (PowerShell & RunDLL)
+Because the Node.js backend runs on your local computer, AIVA can execute system-level commands!
+**Try saying out loud:**
+* *"Mute my computer volume"* -> AIVA triggers a PowerShell `WScript.Shell` keypress.
+* *"Empty the recycle bin"* -> AIVA triggers PowerShell `Clear-RecycleBin -Force`.
+* *"Lock my computer"* -> AIVA executes `rundll32.exe user32.dll,LockWorkStation`.
+* *"Put the computer to sleep"* -> AIVA triggers `SetSuspendState`.
 
 ---
 
