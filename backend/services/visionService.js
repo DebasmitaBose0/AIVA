@@ -5,17 +5,17 @@ class VisionService {
     constructor() {
         this.apiKey = process.env.GEMINI_API_KEY;
     }
-
     async detectMood(base64Image) {
-        if (!this.apiKey) {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            logger.warn("GEMINI_API_KEY not configured for mood scan.");
             throw new Error("GEMINI_API_KEY not configured.");
         }
 
         try {
             // Clean base64 string
             const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, "");
-
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`;
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
             const payload = {
                 contents: [
