@@ -27,10 +27,10 @@
   --radius-lg: 24px;
 
   /* Font families */
-  --font-heading: 'Chakra Petch', 'Orbitron', sans-serif;
-  --font-body: 'Space Grotesk', 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
-  --font-display: 'Orbitron', sans-serif;
+  --font-heading: 'Roca 1', 'Roca One', 'Chakra Petch', 'Orbitron', sans-serif;
+  --font-body: 'Roca 2', 'Roca Two', 'Space Grotesk', 'Segoe UI', sans-serif;
+  --font-mono: 'Roca 2', 'Roca Two', 'JetBrains Mono', 'Courier New', monospace;
+  --font-display: 'Roca 1', 'Roca One', 'Orbitron', sans-serif;
 }
 
 body {
@@ -424,6 +424,7 @@ body::before {
   background: var(--glass);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius);
+  -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   flex-shrink: 0;
 }
@@ -533,6 +534,7 @@ body::before {
   background: var(--glass);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   transition: all 0.25s;
   cursor: default;
@@ -561,6 +563,7 @@ body::before {
   color: var(--accent3);
 }
 
+
 .chip-text h4 {
   font-family: var(--font-heading);
   font-size: 0.78rem;
@@ -585,6 +588,7 @@ body::before {
   background: var(--glass);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
+  -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   overflow: hidden;
   min-height: 0;
@@ -784,9 +788,36 @@ body::before {
 .chat-msg .timestamp {
   font-size: 0.62rem;
   color: var(--text-dim);
-  margin-top: 5px;
-  text-align: right;
   font-family: var(--font-mono);
+}
+
+.msg-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+.copy-msg-btn {
+  background: transparent;
+  color: var(--text-dim);
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s;
+  display: flex;
+  align-items: center;
+}
+
+.chat-msg:hover .copy-msg-btn {
+  opacity: 0.6;
+}
+
+.copy-msg-btn:hover {
+  color: var(--primary);
+  opacity: 1 !important;
 }
 
 /* Empty chat */
@@ -976,25 +1007,80 @@ body::before {
 .start-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(3, 7, 18, 0.97);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(30px);
+  overflow: hidden;
+}
+
+.start-bg-layer {
+  position: absolute;
+  inset: -10%;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: brightness(0.6) blur(2px);
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 2.5s ease-in-out;
+  pointer-events: none;
+}
+
+.start-bg-layer.active {
+  opacity: 1;
+  animation: cinematic-pan 30s ease-in-out infinite alternate;
+}
+
+@keyframes cinematic-pan {
+  0% {
+    transform: scale(1) translate(0, 0);
+  }
+
+  100% {
+    transform: scale(1.1) translate(-2%, 2%);
+  }
 }
 
 .start-content {
+  position: relative;
+  z-index: 2;
+  background: rgba(3, 7, 18, 0.4);
+  padding: 50px 80px;
+  border-radius: 24px;
+  border: 1px solid rgba(0, 255, 231, 0.15);
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.6), inset 0 0 30px rgba(0, 255, 231, 0.05);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
 }
 
-.start-shield {
+.start-icon-container {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.start-transition-icon {
+  position: absolute;
   color: var(--primary);
-  opacity: 0.6;
+  opacity: 0;
+  transform: scale(0.6) translateY(10px);
+  filter: blur(4px);
+  transition: all 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.start-transition-icon.active {
+  opacity: 0.8;
+  transform: scale(1) translateY(0);
+  filter: blur(0);
   animation: pulse-icon 2s ease-in-out infinite;
 }
 
@@ -1094,10 +1180,149 @@ body::before {
   animation: blink-animation 1s steps(2, start) infinite;
 }
 
+/* 🌊 Thinking Dotted Wave */
+.thinking-wave {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 4px 0;
+}
+
+.thinking-wave .dot {
+  width: 6px;
+  height: 6px;
+  background: var(--primary);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--primary-glow);
+  opacity: 0.4;
+  animation: wave-bounce 1.4s infinite ease-in-out both;
+}
+
+.thinking-wave .dot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.thinking-wave .dot:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes wave-bounce {
+
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+
+  40% {
+    transform: translateY(-8px);
+    opacity: 1;
+    background: var(--secondary);
+  }
+}
+
 @keyframes blink-animation {
   to {
     visibility: hidden;
   }
+}
+
+/* ================================================================
+   TYPEWRITER / COPILOT-STYLE TEXT ANIMATION
+   ================================================================ */
+
+/* Words being typed appear with blur-to-clear transition */
+.typewriter-text {
+  animation: text-reveal 0.2s ease-out;
+}
+
+/* The last few words get a blur-to-clear effect */
+.chat-msg.animating .bubble {
+  position: relative;
+}
+
+.chat-msg.animating .bubble p {
+  -webkit-mask-image: linear-gradient(to left, transparent 0%, black 15%);
+  mask-image: linear-gradient(to left, transparent 0%, black 15%);
+  animation: typing-mask 0.15s ease forwards;
+}
+
+@keyframes typing-mask {
+  from {
+    -webkit-mask-image: linear-gradient(to left, transparent 0%, transparent 5%, black 25%);
+    mask-image: linear-gradient(to left, transparent 0%, transparent 5%, black 25%);
+  }
+
+  to {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
+@keyframes text-reveal {
+  from {
+    filter: blur(3px);
+    opacity: 0.5;
+  }
+
+  to {
+    filter: blur(0);
+    opacity: 1;
+  }
+}
+
+/* ================================================================
+   ANIMATED AVATARS — Active Conversation State
+   ================================================================ */
+
+/* Bot avatar glows with a pulsing ring when responding */
+.chat-msg.bot .avatar.avatar-active {
+  animation: avatar-bot-pulse 1.5s ease-in-out infinite;
+  border-color: var(--primary);
+  box-shadow: 0 0 12px var(--primary-glow), 0 0 24px rgba(0, 255, 231, 0.1);
+}
+
+@keyframes avatar-bot-pulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 8px var(--primary-glow), 0 0 16px rgba(0, 255, 231, 0.08);
+    transform: scale(1);
+  }
+
+  50% {
+    box-shadow: 0 0 18px var(--primary-glow), 0 0 32px rgba(0, 255, 231, 0.2);
+    transform: scale(1.08);
+  }
+}
+
+/* User avatar pulses purple when their query is being processed */
+.chat-msg.user .avatar.avatar-active {
+  animation: avatar-user-pulse 1.5s ease-in-out infinite;
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.3), 0 0 24px rgba(168, 85, 247, 0.1);
+}
+
+@keyframes avatar-user-pulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 8px rgba(168, 85, 247, 0.2), 0 0 16px rgba(168, 85, 247, 0.08);
+    transform: scale(1);
+  }
+
+  50% {
+    box-shadow: 0 0 18px rgba(168, 85, 247, 0.4), 0 0 32px rgba(168, 85, 247, 0.2);
+    transform: scale(1.08);
+  }
+}
+
+/* Smooth entrance for animated bot messages */
+.chat-msg.bot.animating .bubble {
+  border-color: rgba(0, 255, 231, 0.2);
+  box-shadow: 0 0 20px rgba(0, 255, 231, 0.05);
 }
 
 /* ================================================================
@@ -1149,6 +1374,13 @@ body::before {
   .suggestion-chip {
     font-size: 0.72rem;
     padding: 6px 12px;
+  }
+}
+
+
+@media (max-width: 768px) {
+  .wake-word-control span {
+    display: none;
   }
 }
 

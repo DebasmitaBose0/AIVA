@@ -49,6 +49,3 @@ build/
 # === Misc ===
 *.tsbuildinfo
 next-env.d.ts
-
-# === Test / Dev only files ===
-backend/test-*.js

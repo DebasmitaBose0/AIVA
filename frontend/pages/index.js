@@ -4,7 +4,8 @@ import JarvisLoader from "../components/JarvisLoader";
 import {
   Mic, MicOff, Bot, User, Copy, Trash2, Clock, Calendar,
   CloudSun, Laugh, HelpCircle, Volume2, Globe, Cpu, Zap,
-  MessageSquare, Activity, Shield, Radio, Send
+  MessageSquare, Activity, Shield, Radio, Send, Monitor,
+  Battery, AppWindow
 } from "lucide-react";
 
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
@@ -14,6 +15,9 @@ export default function Home() {
   const [lastCommand, setLastCommand] = useState("");
   const [response, setResponse] = useState("");
   const [chatHistory, setChatHistory] = useState([]);
+  const [animatingMsgId, setAnimatingMsgId] = useState(null);
+  const [animatedText, setAnimatedText] = useState("");
+  const animatingRef = useRef(false);
   const [isListening, setIsListening] = useState(false);
   const [recognition, setRecognition] = useState(null);
   const [isSupported, setIsSupported] = useState(true);
@@ -22,16 +26,18 @@ export default function Home() {
   const [missingLangs, setMissingLangs] = useState([]);
   const [systemStarted, setSystemStarted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [startIconIndex, setStartIconIndex] = useState(0);
+  const startIcons = [Shield, Mic, Radio, Activity, Globe];
+  const [startBgIndex, setStartBgIndex] = useState(0);
+  const startBackgrounds = ['/aiva_bg1.png', '/aiva_bg2.png'];
   const [isProcessing, setIsProcessing] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
-  const [isTextMode, setIsTextMode] = useState(false);
   const [textInput, setTextInput] = useState("");
+  const [isTextMode, setIsTextMode] = useState(false);
 
   const languageNames = {
-    hi: 'Hindi', bn: 'Bengali', ta: 'Tamil', te: 'Telugu',
-    mr: 'Marathi', gu: 'Gujarati', kn: 'Kannada', ml: 'Malayalam',
-    pa: 'Punjabi', en: 'English', or: 'Odia', as: 'Assamese',
-    ur: 'Urdu', ne: 'Nepali', sa: 'Sanskrit', ks: 'Kashmiri', sd: 'Sindhi'
+    en: 'English', hi: 'Hindi', bn: 'Bengali', ta: 'Tamil', te: 'Telugu',
+    mr: 'Marathi', gu: 'Gujarati', kn: 'Kannada', ml: 'Malayalam', pa: 'Punjabi', ur: 'Urdu'
   };
 
   const voiceRef = useRef(null);
@@ -39,6 +45,8 @@ export default function Home() {
   const recognitionRef = useRef(null);
   const silenceTimerRef = useRef(null);
   const transcriptRef = useRef("");
+  const lastUserCommand = useRef("");
+  const lastUserTime = useRef(0);
 
   // Scroll chat to bottom
   useEffect(() => {
@@ -65,15 +73,58 @@ export default function Home() {
   // Add message — strict dedup
   const addMessage = (type, text) => {
     const time = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    const id = Date.now() + Math.random();
     setChatHistory(prev => {
       const last = prev[prev.length - 1];
       if (last && last.type === type && last.text === text) return prev;
-      return [...prev, { type, text, time }];
+      return [...prev, { type, text, time, id }];
     });
-    if (type === 'bot') setResponse(text);
+    if (type === 'bot') {
+      setResponse(text);
+      // Start typewriter animation for bot messages
+      animateMessage(id, text);
+    }
+  };
+
+  // Copilot-style animated text reveal — word by word blur-to-clear
+  const animateMessage = (msgId, fullText) => {
+    setAnimatingMsgId(msgId);
+    setAnimatedText("");
+    animatingRef.current = true;
+    const words = fullText.split(/\s+/);
+    let current = 0;
+    const interval = setInterval(() => {
+      if (!animatingRef.current) { clearInterval(interval); return; }
+      current++;
+      setAnimatedText(words.slice(0, current).join(' '));
+      if (current >= words.length) {
+        clearInterval(interval);
+        setAnimatingMsgId(null);
+        setAnimatedText("");
+        animatingRef.current = false;
+      }
+    }, 40); // 40ms per word for smooth reveal
   };
 
   useEffect(() => { voicesRef.current = voices; }, [voices]);
+
+  // Handle start overlays rotating icons and backgrounds
+  useEffect(() => {
+    if (!isLoading && !systemStarted) {
+      const iconInterval = setInterval(() => {
+        setStartIconIndex(prev => (prev + 1) % startIcons.length);
+      }, 1500);
+
+      const bgInterval = setInterval(() => {
+        setStartBgIndex(prev => (prev + 1) % startBackgrounds.length);
+      }, 6000); // Cross-fade background every 6 seconds
+
+      return () => {
+        clearInterval(iconInterval);
+        clearInterval(bgInterval);
+      };
+    }
+  }, [isLoading, systemStarted, startIcons.length, startBackgrounds.length]);
   useEffect(() => {
     voiceRef.current = selectedVoice;
     if (recognitionRef.current && selectedVoice) {
@@ -89,12 +140,16 @@ export default function Home() {
       const all = window.speechSynthesis.getVoices();
       const filtered = all.filter(v => {
         const l = v.lang.toLowerCase();
-        return l.startsWith('en') || l.startsWith('hi') || l.startsWith('bn') ||
+        // Support English and all major Indian regional languages
+        if (
+          l.startsWith('en') || l.startsWith('hi') || l.startsWith('bn') ||
           l.startsWith('ta') || l.startsWith('te') || l.startsWith('mr') ||
           l.startsWith('gu') || l.startsWith('kn') || l.startsWith('ml') ||
-          l.startsWith('pa') || l.startsWith('or') || l.startsWith('as') ||
-          l.startsWith('ur') || l.startsWith('ne') || l.startsWith('sa') ||
-          l.startsWith('ks') || l.startsWith('sd') || l.includes('in');
+          l.startsWith('pa') || l.startsWith('ur')
+        ) {
+          return true;
+        }
+        return false;
       });
 
       const sorted = filtered.sort((a, b) => {
@@ -188,6 +243,7 @@ export default function Home() {
     };
   }, []);
 
+
   const initializeSystem = () => {
     setSystemStarted(true);
     setStatus("System Online");
@@ -245,9 +301,6 @@ export default function Home() {
   };
 
   // Dedup guard
-  const lastUserCommand = useRef('');
-  const lastUserTime = useRef(0);
-
   const processCommand = async (command) => {
     const now = Date.now();
     if (command === lastUserCommand.current && now - lastUserTime.current < 1500) return;
@@ -321,6 +374,11 @@ export default function Home() {
           if (mv && mv.name !== selectedVoice?.name) { setSelectedVoice(mv); voiceRef.current = mv; }
         }
 
+        // Handle Redirects
+        if (data.action === 'REDIRECT' && data.url) {
+          window.open(data.url, '_blank');
+        }
+
         finishResponse(data.response);
       } else {
         finishResponse("Error processing command.");
@@ -352,7 +410,11 @@ export default function Home() {
   const speakResponse = (text) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
+
+    // Clean up Markdown symbols so the TTS doesn't say "asterisk" or "hash"
+    const cleanedText = text.replace(/[*#_`~[\]=+\-]/g, '').trim();
+
+    const u = new SpeechSynthesisUtterance(cleanedText);
     const v = voiceRef.current;
     if (v) u.voice = v;
     else {
@@ -390,17 +452,16 @@ export default function Home() {
 
   const features = [
     { icon: Mic, title: "Voice Control", desc: "Natural speech input" },
-    { icon: Globe, title: "10+ Languages", desc: "Indian languages supported" },
+    { icon: Globe, title: "Smart Search", desc: "Real-time web browsing" },
     { icon: CloudSun, title: "Live Weather", desc: "City-level accuracy" },
-    { icon: Cpu, title: "AI Powered", desc: "Llama 3.3 70B via Groq" },
+    { icon: Cpu, title: "AI Powered", desc: "Dual Gemini + Groq" },
   ];
 
   const suggestions = [
     { icon: Clock, label: "What time is it?", cmd: "What is the time?" },
-    { icon: Calendar, label: "Today's date", cmd: "What is the date today?" },
     { icon: CloudSun, label: "Weather in Delhi", cmd: "What is the weather in Delhi?" },
-    { icon: Laugh, label: "Tell a joke", cmd: "Tell me a joke" },
-    { icon: HelpCircle, label: "Who are you?", cmd: "Who are you?" },
+    { icon: Globe, label: "Latest News", cmd: "Give me the latest news headlines" },
+    { icon: Laugh, label: "Tell me a joke", cmd: "Tell me a joke" },
   ];
 
   // Format basic markdown (bold and italic) safely
@@ -421,7 +482,7 @@ export default function Home() {
       <Head>
         <title>AIVA — AI Voice Assistant</title>
         <meta name="description" content="AIVA: AI voice assistant with multilingual support, live weather, and conversational AI." />
-        <link rel="icon" href="/favicon.svg" />
+        <link rel="icon" href="/aiva_favicon.png" />
       </Head>
 
       {isLoading && <JarvisLoader onFinish={() => setIsLoading(false)} />}
@@ -431,8 +492,25 @@ export default function Home() {
           {/* START OVERLAY */}
           {!systemStarted && (
             <div className="start-overlay">
+              {/* Cycling Backgrounds */}
+              {startBackgrounds.map((bg, idx) => (
+                <div
+                  key={bg}
+                  className={`start-bg-layer ${idx === startBgIndex ? 'active' : ''}`}
+                  style={{ backgroundImage: `url(${bg})` }}
+                />
+              ))}
+
               <div className="start-content">
-                <Shield size={48} className="start-shield" />
+                <div className="start-icon-container">
+                  {startIcons.map((Icon, idx) => (
+                    <Icon
+                      key={idx}
+                      size={48}
+                      className={`start-shield start-transition-icon ${idx === startIconIndex ? 'active' : ''}`}
+                    />
+                  ))}
+                </div>
                 <h2 className="start-title">AIVA</h2>
                 <p className="start-sub">Artificially Intelligent Voice Assistant</p>
                 <button className="start-btn" id="start-btn" onClick={initializeSystem}>
@@ -481,7 +559,7 @@ export default function Home() {
             {features.map((f, i) => {
               const Icon = f.icon;
               return (
-                <div className="feature-chip" key={i}>
+                <div className="feature-chip" key={i} onClick={f.action} style={f.action ? { cursor: 'pointer' } : {}}>
                   <Icon size={20} className="chip-icon" />
                   <div className="chip-text">
                     <h4>{f.title}</h4>
@@ -524,22 +602,39 @@ export default function Home() {
                 </div>
               )}
 
-              {chatHistory.map((msg, i) => (
-                <div key={i} className={`chat-msg ${msg.type}`}>
-                  {msg.type === 'bot' && <div className="avatar"><Bot size={16} /></div>}
-                  <div className="bubble">
-                    <p dangerouslySetInnerHTML={formatText(msg.text)} />
-                    <div className="timestamp">{msg.time}</div>
+              {chatHistory.map((msg, i) => {
+                const isAnimating = msg.id === animatingMsgId;
+                const displayText = isAnimating ? animatedText : msg.text;
+                return (
+                  <div key={msg.id || i} className={`chat-msg ${msg.type} ${isAnimating ? 'animating' : ''}`}>
+                    {msg.type === 'bot' && <div className={`avatar ${isAnimating || isProcessing ? 'avatar-active' : ''}`}><Bot size={16} /></div>}
+                    <div className="bubble">
+                      {msg.type === 'bot' ? (
+                        <p className={isAnimating ? 'typewriter-text' : ''} dangerouslySetInnerHTML={formatText(displayText)} />
+                      ) : (
+                        <p dangerouslySetInnerHTML={formatText(msg.text)} />
+                      )}
+                      <div className="msg-actions">
+                        <button className="copy-msg-btn" onClick={() => navigator.clipboard.writeText(msg.text)} title="Copy message"><Copy size={12} /></button>
+                        <div className="timestamp">{msg.time}</div>
+                      </div>
+                    </div>
+                    {msg.type === 'user' && <div className={`avatar ${isProcessing && i === chatHistory.length - 1 ? 'avatar-active' : ''}`}><User size={16} /></div>}
                   </div>
-                  {msg.type === 'user' && <div className="avatar"><User size={16} /></div>}
-                </div>
-              ))}
+                );
+              })}
+
+
 
               {isProcessing && (
                 <div className="chat-msg bot">
                   <div className="avatar"><Bot size={16} /></div>
                   <div className="bubble">
-                    <p style={{ opacity: 0.6, fontStyle: 'italic' }}>Thinking<span className="blink">...</span></p>
+                    <div className="thinking-wave">
+                      <div className="dot"></div>
+                      <div className="dot"></div>
+                      <div className="dot"></div>
+                    </div>
                   </div>
                 </div>
               )}

@@ -1,6 +1,6 @@
 # 🤖 AIVA — User Guide & Internal Architecture
 
-> Welcome to the internal documentation and user guide for **AIVA** *(Artificially Intelligent Voice Assistant)*. This document explains the core idea and the working principles of every file.
+> Welcome to the internal documentation and user guide for **AIVA** *(Artificially Intelligent Voice Assistant)*. Created by **Debasmita Bose** and **Babin Bid**.
 
 ---
 
@@ -9,14 +9,45 @@
 AIVA is a full-stack, JARVIS-inspired web-based voice assistant. It delivers an interactive, voice-first experience with a futuristic UI *(glassmorphism, neon glows, hacker-style boot sequence)*.
 
 🧠 The assistant handles:
-- 💬 General conversations
-- 🌍 Localized greetings in **10+ Indian languages**
+- 💬 General conversations & conversational AI
+- 🌍 Vast fluency in **English** alongside native regional support for **Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, and Urdu** directly tied to OS voices.
 - ⏰ Current time & date
-- 🌦️ Weather information *(OpenWeatherMap + WeatherAPI)*
-- 🏏 Live Sports & Match Scores *(CricketData + API-Football)*
+- 🌦️ Weather information *(OpenWeatherMap + WeatherAPI fallback)*
+- 🏏 **Live Sports Scores** *(CricketData + API-Football)* — real-time, ball-by-ball
 - 📰 Live News & Headlines *(GNews API)*
-- 🔍 General information *(DuckDuckGo / Wikipedia)*
-- 🤖 Conversational AI via **Llama 3.3 70B** (Groq)
+- 🤖 **Universal Conversational AI** — Uses **Gemini 2.5 Flash** as primary engine, intelligently falling back to **Llama 3.3 70B** (Groq) if quotas are exceeded
+- 💻 **Native OS Control (Windows)** — Command AIVA to mute volume, lock screen, sleep PC, or empty the recycle bin
+- 📧 **Smart Email Drafting** — Tell AIVA to draft an email; it generates the content and opens your mail client ready to send
+- ⌨️ **Text/Type Mode** — switch between voice and keyboard input
+
+---
+
+## 🔑 API Keys & Their Purpose
+
+AIVA uses multiple APIs working together. Each serves a specific role:
+
+### 🧠 Core AI
+
+| Key | Service | Purpose |
+|-----|---------|---------|
+| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/) | **Primary AI Engine** -> Powers AIVA's conversational brain. High quota, extremely fast. |
+| `GROQ_API_KEY` | [Groq Cloud](https://console.groq.com) | **Secondary AI Engine** -> Fallback engine (Llama 3.3) used automatically if Gemini's API limit is exceeded or unresponsive. |
+
+### 🌦️ Weather APIs (Primary + Fallback)
+
+| Key | Service | Purpose |
+|-----|---------|---------|
+| `OPENWEATHER_API_KEY` | [OpenWeatherMap](https://openweathermap.org/api) | **Primary** weather data source. When you ask "What's the weather in Kolkata?", this is checked first. |
+| `WEATHER_API_KEY` | [WeatherAPI.com](https://www.weatherapi.com/) | **Fallback** — if OpenWeatherMap is down or rate-limited, this kicks in automatically. |
+
+### 🏏 Live Sports APIs (Real-Time Scores)
+
+| Key | Service | Purpose |
+|-----|---------|---------|
+| `CRICKET_API_KEY` | [CricketData.org](https://cricketdata.org/) | Fetches **live, real-time cricket match scores** — team names, current status, ball-by-ball updates. Triggered when you ask about cricket + score/match/live. |
+| `SPORTS_API_KEY` | [API-Football](https://dashboard.api-football.com/) | Fetches **live football/soccer match scores** — teams, goals, match status. Triggered when you ask about football + score/match. |
+
+
 
 ---
 
@@ -30,11 +61,13 @@ The backend securely processes commands, interacts with external APIs, and manag
 |------|-----------|
 | 🟢 `backend/server.js` | Entry point — port config (`5000`), CORS, JSON parsing, routes |
 | 🛣️ `backend/routes/voice.js` | `POST /api/voice` endpoint — validates payload, delegates to commandService |
-| 🧠 `backend/services/commandService.js` | **Core brain** — multilingual greetings, time/date, weather, DuckDuckGo, Wikipedia, Groq AI (rolling 20-message context) |
-| 📝 `backend/logger.js` | Winston logger — records events/errors to `backend/logs/` |
+| 🧠 `backend/services/commandService.js` | **Core brain** — local phrases, weather, live scores, news, web search RAG, and dual-routing AI (Gemini + Groq) |
+| 🗃️ `backend/data/responses.json` | **Offline Lexicon** — stores hundreds of standard greetings and small-talk to bypass API calls (saving limits) |
+|  `backend/logger.js` | Winston logger — records events/errors to `backend/logs/` |
 | 🔒 `backend/middleware/auth.js` | API key authentication — checks `x-api-key` header (bypassed in dev) |
-| ⚙️ `backend/.env` | Environment variables — `PORT`, `GROQ_API_KEY` |
-| 📦 `backend/package.json` | Dependencies: Express, CORS, Dotenv, OpenAI, Winston |
+| ⚙️ `backend/.env` | Environment variables — all API keys (see below) |
+| 📄 `backend/.env.example` | Template for API keys — copy this to `.env` and fill in your keys |
+| 📦 `backend/package.json` | Dependencies: Express, CORS, Dotenv, OpenAI, Winston, node-fetch |
 
 ### 🖥️ Frontend (Next.js)
 
@@ -42,29 +75,82 @@ The frontend captures voice input, plays synthesized speech, and renders the fut
 
 | File | 📋 Purpose |
 |------|-----------|
-| 🏠 `frontend/pages/index.js` | **Main dashboard** — speech recognition, voice synthesis, chat-centric layout with mic in input bar, suggestion chips, responsive design |
+| 🏠 `frontend/pages/index.js` | **Main dashboard** — speech recognition, voice synthesis, text mode, chat-centric layout with mic in input bar, suggestion chips, markdown rendering in chat, responsive design |
 | 🔄 `frontend/pages/_app.js` | Next.js wrapper — imports `globals.css` |
 | 🔌 `frontend/pages/api/voice.js` | Proxy route — forwards requests to backend (`localhost:5000`) |
 | 🎬 `frontend/components/JarvisLoader.js` | **Hacker boot loader** — matrix rain canvas, terminal typewriter, progress bar, glitch text, Web Audio API sounds |
-| 🧠 `frontend/services/commandService.js` | Client-side fallback — local time/date, DuckDuckGo searches when backend unavailable |
-| 🎨 `frontend/styles/globals.css` | **Full design system** — CSS variables, layout, animations, glassmorphism, responsive breakpoints |
+| 🧠 `frontend/services/commandService.js` | Client-side fallback — local time/date when backend unavailable |
+| 🎨 `frontend/styles/globals.css` | **Full design system** — CSS variables, layout, animations, glassmorphism, text mode styling, responsive breakpoints |
 | 🖼️ `frontend/public/favicon.svg` | Browser tab icon |
 | 📦 `frontend/package.json` | Dependencies: Next.js, React, Lucide Icons |
 
 ---
 
-## 📖 Instructions
+## 📖 Setup Instructions
 
-### ▶️ Starting the System
+### 1️⃣ Clone & Install
 
-1. 🔙 **Backend:** Open a terminal in `backend/`
-   - ⚙️ Ensure `.env` has `PORT=5000` and config keys (GROQ_API_KEY, OPENWEATHER_API_KEY, WEATHER_API_KEY, CRICKET_API_KEY, SPORTS_API_KEY, NEWS_API_KEY).
-   - 📦 Run `npm install` then `node server.js`
+```bash
+# Clone the repository
+git clone <your-repo-url>
+cd AIVA
 
-2. 🖥️ **Frontend:** Open a terminal in `frontend/`
-   - 📦 Run `npm install` then `npm run dev`
+# Install backend dependencies
+cd backend
+npm install
 
-### 🗣️ Using the App
+# Install frontend dependencies
+cd ../frontend
+npm install
+```
+
+### 2️⃣ Configure API Keys
+
+Copy the example env file and fill in your keys:
+
+```bash
+cd backend
+cp .env.example .env
+```
+
+Then edit `backend/.env` with your keys:
+
+```env
+# Server
+PORT=5000
+
+# AI Brain (REQUIRED: At least one)
+GEMINI_API_KEY=your_gemini_key_here
+GROQ_API_KEY=your_groq_api_key_here
+
+# Weather (REQUIRED for weather commands)
+OPENWEATHER_API_KEY=your_openweathermap_key_here
+WEATHER_API_KEY=your_weatherapi_key_here
+
+# Live Sports (REQUIRED for live score commands)
+CRICKET_API_KEY=your_cricketdata_key_here
+SPORTS_API_KEY=your_api_football_key_here
+
+# News (REQUIRED for news commands)
+NEWS_API_KEY=your_gnews_key_here
+
+```
+
+### 3️⃣ Start the System
+
+```bash
+# Terminal 1 — Start Backend
+cd backend
+npm start    # or: node server.js
+
+# Terminal 2 — Start Frontend
+cd frontend
+npm run dev
+```
+
+---
+
+## 🗣️ Using the App
 
 1. 🌐 Navigate to `http://localhost:3000`
 2. ⏳ Wait for the hacker-style boot sequence to complete
@@ -74,23 +160,155 @@ The frontend captures voice input, plays synthesized speech, and renders the fut
 6. 💡 Or click **suggestion chips** for quick commands (time, date, weather, jokes)
 7. 🔊 Select voices from the dropdown in the navbar *(grouped by language)*
 
-### 🎮 UI Controls
+---
+
+## 🧠 How AIVA Processes a Query
+
+Understanding the command processing pipeline:
+
+```
+User speaks or types a command
+        │
+        ▼
+┌─── Local Commands (Offline / responses.json) ─────┐
+│  Time, Date, Identity, Greetings (Hi, Hello),      │
+│  Small Talk, Jokes, Voice changes (No API Call)     │
+└────────────────────────────────────────────────────┘
+        │ (not matched?)
+        ▼
+┌─── Desktop Environment (Browser Redirects & OS) ──┐
+│  Open YouTube, Draft Emails natively, and Windows  │
+│  OS Controls (Mute volume, Empty Recycle Bin, Sleep)│
+└────────────────────────────────────────────────────┘
+        │ (not matched?)
+        ▼
+┌─── Weather APIs ──────────────────────────────────┐
+│  OpenWeatherMap (primary) → WeatherAPI (fallback)  │
+└────────────────────────────────────────────────────┘
+        │ (not a weather query?)
+        ▼
+┌─── Live Sports APIs ──────────────────────────────┐
+│  CricketData (live cricket) / API-Football (live)  │
+│  Returns instant structured scores if match is on  │
+└────────────────────────────────────────────────────┘
+        │ (no live match or not a sports query?)
+        ▼
+┌─── News API ──────────────────────────────────────┐
+│  GNews — top 5 headlines                           │
+└────────────────────────────────────────────────────┘
+        │ (not a news query?)
+        ▼
+┌─── Dual AI + Live Web Search (RAG) ───────────────┐
+│  1. Scrape DuckDuckGo for 5 live web snippets      │
+│  2. Format into strict real-time context prompt    │
+│  3. Call Gemini (Primary). If fail -> Call Groq    │
+│  → Handles ALL remaining queries comprehensively    │
+└────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🎮 UI Controls
 
 | Control | 📋 Action |
 |---------|----------|
-| 📋 **Copy Chat** | Copies full conversation to clipboard |
+| 📋 **Copy Chat** | Copies full conversation to clipboard (bottom right) |
 | 🗑️ **Clear Chat** | Wipes session history |
-| 🎙️ **Mic/Voice Toggle** | Tap to start/stop listening, or click to switch modes |
+| 🎙️ **Mic/Voice Toggle** | Tap to start/stop listening |
+| 📋 **Copy Message** | Find the small copy button on individual message bubbles |
+| ⌨️ **Text Mode** | Say "enable text mode" or click the status bar to type |
 | 💡 **Suggestion Chips** | Quick commands — time, date, weather, jokes, identity |
+| 🔊 **Voice Selector** | Choose from available voices grouped by language |
 
 ---
 
 ## 🔗 Quick Reference
 
 | 🏷️ Item | 📋 Value |
-|---------|---------|
+|---------|---------
 | 🌐 Frontend URL | `http://localhost:3000` |
 | 🔙 Backend URL | `http://localhost:5000` |
-| 🔑 API Key | Set `GROQ_API_KEY` in `backend/.env` |
-| 🤖 AI Model | `llama-3.3-70b-versatile` |
+| 🤖 AI Model | `Gemini 2.5 Flash` (Primary) / `Llama 3.3 70B` (Fallback) |
 | 🧪 Health Check | `GET http://localhost:5000/health` |
+| 👥 Creators | Debasmita Bose & Babin Bid |
+
+---
+
+## 💻 Native Desktop Integration & Email Drafting
+
+AIVA features powerful capabilities to directly control your Windows Desktop and natively draft your emails. Here is how it is built and how to use it.
+
+### 📧 Smart Email Drafting (Native `mailto` Implementation)
+Instead of forcing the user to configure complicated Google Cloud / OAuth2 setups, AIVA uses a much more secure and seamless method. 
+**How to use it:** 
+1. Say or type: *"AIVA, draft an email to my boss saying I'll be 10 minutes late."*
+2. AIVA intercepts the "draft email" phrase.
+3. It passes the prompt directly to Gemini or Groq to synthesize a professional email body.
+4. It redirects your browser using a `mailto:?body=...` URI.
+5. Your default OS email client (or Gmail Web app) opens automatically with the entire email written for you.
+6. **You review it and click 'Send'!**
+
+*(This method requires absolutely $0 server setup, needs no tokens, and is completely privacy-first because AIVA does not need the password to your inbox!)*
+
+### 🚀 Windows OS Controls (PowerShell & RunDLL)
+Because the Node.js backend runs on your local computer, AIVA can execute system-level commands!
+**Try saying out loud:**
+* *"Mute my computer volume"* -> AIVA triggers a PowerShell `WScript.Shell` keypress.
+* *"Empty the recycle bin"* -> AIVA triggers PowerShell `Clear-RecycleBin -Force`.
+* *"Lock my computer"* -> AIVA executes `rundll32.exe user32.dll,LockWorkStation`.
+* *"Put the computer to sleep"* -> AIVA triggers `SetSuspendState`.
+
+---
+
+## 🌍 Deployment
+
+### 🔙 Backend (Node/Express)
+1.  **Platform:** [Render](https://render.com/) or Railway.
+2.  **Root Dir:** `backend`
+3.  **Build Command:** `npm install`
+4.  **Start Command:** `npm start`
+5.  **Environment Variables:** Add all `.env` keys (Groq, OpenWeather, etc.) in the dashboard.
+    - **`API_KEY`**: (Custom) - Your secret AIVA password.
+
+### 🖥️ Frontend (Next.js)
+1.  **Platform:** [Vercel](https://vercel.com/) (Recommended).
+2.  **Root Dir:** `frontend`
+3.  **Build Command:** `next build`
+4.  **Environment Variables:**
+    - **`NEXT_PUBLIC_API_KEY`**: (Custom) - MUST match the Backend's `API_KEY`.
+    - **`BACKEND_URL`**: Your Render URL (e.g., `https://your-aiva-backend.onrender.com`).
+
+### 🔗 Connecting the Frontend & Backend
+
+To allow your AIVA Frontend to securely talk to your Backend, you must set up a "secret handshake":
+
+1.  **Set Backend Password:** 
+    - In your **Render Dashboard**, add an environment variable named **`API_KEY`**.
+    - Set its value to any secret password you like (e.g., `MySecretAIVA123`).
+2.  **Set Frontend Password:** 
+    - In your **Vercel Dashboard**, add an environment variable named **`NEXT_PUBLIC_API_KEY`**.
+    - Set its value to the **EXACT SAME** password you used in the Backend.
+3.  **Establish URL Connection:** 
+    - In your **Vercel Dashboard**, add another environment variable named **`BACKEND_URL`**.
+    - Set its value to your **Render Web Service URL** (e.g., `https://your-aiva-backend.onrender.com`).
+
+Once these three variables are set, your AIVA portal will be securely connected and ready for use!
+
+---
+
+## 🔒 Security Notes
+
+- All API keys are stored in `backend/.env` which is listed in `.gitignore` — they are **never pushed to GitHub**.
+- A `.env.example` file is provided for reference — it contains no real keys.
+- Backend API authentication is enforced via `x-api-key` header (bypassed in dev mode).
+
+---
+
+## 🌍 Supported Languages
+
+AIVA currently supports comprehensive voice synthesis, interaction, and natural conversation in the following default languages:
+
+| Language | Code | Greeting | Voice Options |
+|----------|------|----------|---------------|
+| English | `en` | Hello! | Default English System Voice |
+| Hindi | `hi` | नमस्ते! | 1 Male Voice / 1 Female Voice |
