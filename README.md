@@ -26,7 +26,7 @@
 - 💬 **Chat-centric UI** — mic embedded in input bar, suggestion chips, timestamps, individual message copy, clear chat
 - 🔒 **Secure API** via `x-api-key` header (bypassed in dev mode)
 - 🎨 **Futuristic theme** — glassmorphism, neon glows, hacker-style boot loader
-- 🧠 **Dual-Engine AI** — Gemini 1.5 Flash (Primary) falling back to Llama 3.3 70B via Groq
+- 🧠 **Dual-Engine AI** — Gemini 2.5 Flash (Primary) falling back to Llama 3.3 70B via Groq
 - 🗃️ **Offline Greeting Lexicon** — Caches small-talk responses to intelligently save quota limits
 - 🎭 **Facial Mood Recognition** — Analyze your face via camera to adjust AIVA's personality (Powered by Gemini Vision)
 - 🎭 **Lucide Icons** — professional icon set throughout the UI
@@ -100,7 +100,7 @@
 |-------|-----------|
 | 🖥️ Frontend | Next.js 14, React 18, Lucide Icons |
 | 🔙 Backend | Express.js, Node Fetch, Offline Lexicon Routing |
-| 🧠 AI Model | Gemini 1.5 Flash (Primary) / Llama 3.3 70B (Secondary) |
+| 🧠 AI Model | Gemini 2.5 Flash (Primary) / Llama 3.3 70B (Secondary) |
 | 🌐 APIs | Groq, Gemini Vision, OpenWeather, GNews |
 | 🗣️ Speech | Web Speech API (Recognition + Synthesis) |
 | 🔤 Fonts | Chakra Petch, Space Grotesk, Orbitron, JetBrains Mono |
