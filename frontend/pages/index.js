@@ -86,24 +86,17 @@ export default function Home() {
     }
   };
 
-  // Copilot-style animated text reveal — word by word blur-to-clear
+  // Copilot-style animated text reveal using native GPU Cascading CSS delays
   const animateMessage = (msgId, fullText) => {
     setAnimatingMsgId(msgId);
-    setAnimatedText("");
+    setAnimatedText(fullText);
     animatingRef.current = true;
-    const words = fullText.split(/\s+/);
-    let current = 0;
-    const interval = setInterval(() => {
-      if (!animatingRef.current) { clearInterval(interval); return; }
-      current++;
-      setAnimatedText(words.slice(0, current).join(' '));
-      if (current >= words.length) {
-        clearInterval(interval);
-        setAnimatingMsgId(null);
-        setAnimatedText("");
-        animatingRef.current = false;
-      }
-    }, 40); // 40ms per word for smooth reveal
+    const wordsCount = fullText.split(/\s+/).length;
+    setTimeout(() => {
+      setAnimatingMsgId(null);
+      setAnimatedText("");
+      animatingRef.current = false;
+    }, wordsCount * 40 + 1500); // Match CSS staggered completion time
   };
 
   useEffect(() => { voicesRef.current = voices; }, [voices]);
@@ -359,13 +352,19 @@ export default function Home() {
       return;
     }
 
-    // Send to backend
+    // Send to backend with strict 45s timeout to allow Groq fallback breathing room
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 45000);
+
       const res = await fetch("/api/voice", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
-        body: JSON.stringify({ command: punctuatedCommand })
+        body: JSON.stringify({ command: punctuatedCommand }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
+
       let data;
       try { data = await res.json(); } catch { data = null; }
 
@@ -501,7 +500,7 @@ export default function Home() {
     { icon: Laugh, label: "Tell me a joke", cmd: "Tell me a joke" },
   ];
 
-  // Format basic markdown (bold and italic) safely
+  // Format basic markdown (bold and italic) and inject CSS Wave
   const formatText = (text, isAnimating = false) => {
     if (!text) return { __html: "" };
     let parsed = text
@@ -509,23 +508,32 @@ export default function Home() {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
 
-    // Inject blur-to-clear typing animation class onto the newest revealed word
+    // Inject natively cascading staggered delays onto words for the Copilot eye-catching blur wave
     if (isAnimating) {
-      const words = parsed.split(' ');
-      if (words.length > 0) {
-        const lastWord = words.pop();
-        if (lastWord.trim()) {
-          parsed = `${words.join(' ')} <span class="typing-blur-word">${lastWord}</span>`;
-        } else {
-          parsed = `${words.join(' ')} `; // Handle empty spaces safely
+      let wordIndex = 0;
+      parsed = parsed.split(/(\*\*.*?\*\*|\*.*?\*|\n)/g).map(part => {
+        if (!part) return '';
+        if (part === '\n') return '<br/>';
+        if (part.startsWith('**') && part.endsWith('**')) {
+          let inner = part.slice(2, -2).split(' ').map(w => `<span class="typing-blur-word" style="animation-delay: ${(wordIndex++) * 0.04}s">${w}</span>`).join(' ');
+          return `<strong>${inner}</strong>`;
         }
-      }
+        if (part.startsWith('*') && part.endsWith('*')) {
+          let inner = part.slice(1, -1).split(' ').map(w => `<span class="typing-blur-word" style="animation-delay: ${(wordIndex++) * 0.04}s">${w}</span>`).join(' ');
+          return `<em>${inner}</em>`;
+        }
+        return part.split(' ').map(w => {
+          if (!w.trim()) return w;
+          return `<span class="typing-blur-word" style="animation-delay: ${(wordIndex++) * 0.04}s">${w}</span>`;
+        }).join(' ');
+      }).join('');
+    } else {
+      parsed = parsed
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/\n/g, '<br/>');
     }
 
-    parsed = parsed
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/\n/g, '<br/>');
     return { __html: parsed };
   };
 
