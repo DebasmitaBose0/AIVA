@@ -563,6 +563,17 @@ body::before {
   color: var(--accent3);
 }
 
+.feature-chip:nth-child(5) {
+  grid-column: 1 / -1;
+  justify-self: center;
+  min-width: 260px;
+}
+
+.feature-chip:nth-child(5) .chip-icon {
+  color: #ff007f;
+  /* Vibrant scan color */
+}
+
 .chip-text h4 {
   font-family: var(--font-heading);
   font-size: 0.78rem;
