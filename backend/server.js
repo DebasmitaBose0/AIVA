@@ -14,7 +14,8 @@ app.use(cors({
   origin: ["http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003"],
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: "20mb" }));
+app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
 // ================= ROUTES =================
 app.use("/api/voice", voiceRoutes);
