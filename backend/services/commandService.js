@@ -3,7 +3,19 @@ const OpenAI = require('openai');
 const { exec } = require('child_process');
 const os = require('os');
 const path = require('path');
+const fs = require('fs');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+
+// Load local static responses to avoid API quotas
+const localResponsesPath = path.join(__dirname, '../data/responses.json');
+let localResponses = { greetings: {}, smalltalk: {} };
+if (fs.existsSync(localResponsesPath)) {
+  try {
+    localResponses = JSON.parse(fs.readFileSync(localResponsesPath, 'utf8'));
+  } catch (e) {
+    logger.error('Failed to parse local responses JSON', e);
+  }
+}
 
 // This service understands multiple Indian languages for basic greetings
 // and small talk.  Supported language keywords include Hindi, Bengali,
@@ -13,8 +25,9 @@ const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fet
 class CommandService {
   constructor() {
     this.openai = null;
+    this.geminiAvailable = !!process.env.GEMINI_API_KEY;
     this.chatHistory = []; // Store conversation history
-    this.initGrok();
+    this.initAI();
   }
 
   // helper to pick a random element from an array
@@ -33,15 +46,21 @@ class CommandService {
     });
   }
 
-  initGrok() {
+  initAI() {
     if (process.env.GROQ_API_KEY) {
       this.openai = new OpenAI({
         apiKey: process.env.GROQ_API_KEY,
         baseURL: "https://api.groq.com/openai/v1",
       });
-      logger.info('Groq API initialized.');
+      logger.info('Groq API initialized as fallback limit handler.');
     } else {
-      logger.warn('GROQ_API_KEY is not set. AI features will be disabled.');
+      logger.warn('GROQ_API_KEY is not set. Groq fallback disabled.');
+    }
+
+    if (this.geminiAvailable) {
+      logger.info('Gemini API identified for primary routing.');
+    } else {
+      logger.warn('GEMINI_API_KEY is not set. Will default to Groq if available.');
     }
   }
 
@@ -49,12 +68,27 @@ class CommandService {
     logger.info(`Processing command: ${command}`);
     const lowerCmd = command.toLowerCase();
 
-    // quick Hindi greetings
+    // quick Indian language offline fallback greetings
     if (lowerCmd.includes('namaste') || lowerCmd.includes('नमस्ते')) {
       return "नमस्ते! मैं AIVA हूँ, आपकी सहायक. मैं आपकी कैसे मदद कर सकती हूँ?";
     }
     if (lowerCmd.includes('namaskar') || lowerCmd.includes('नमस्कार')) {
       return "नमस्कार! मैं AIVA, आपकी सहायिका। मैं आपकी कैसे मदद कर सकती हूँ?";
+    }
+    if (lowerCmd.includes('kem cho') || lowerCmd.includes('કેમ છો')) {
+      return "હું મજામાં છું! હું AIVA છું, તમને કેવી રીતે મદદ કરી શકું?";
+    }
+    if (lowerCmd.includes('kemon acho') || lowerCmd.includes('কেমন আছো') || lowerCmd.includes('nomoshkar')) {
+      return "নমস্কার! আমি AIVA, আমি খুব ভালো আছি। আপনাকে কীভাবে সাহায্য করতে পারি?";
+    }
+    if (lowerCmd.includes('kasa ahes') || lowerCmd.includes('कसा आहेस') || lowerCmd.includes('namaskar') && lowerCmd.includes('aiva')) {
+      return "नमस्कार! मी AIVA आहे. मी तुम्हाला कशी मदत करू शकेन?";
+    }
+    if (lowerCmd.includes('vanakkam') || lowerCmd.includes('வணக்கம்')) {
+      return "வணக்கம்! நான் AIVA. நான் உங்களுக்கு எப்படி உதவ முடியும்?";
+    }
+    if (lowerCmd.includes('namaskaram') || lowerCmd.includes('నమస్కారం')) {
+      return "నమస్కారం! నేను AIVA. నేను మీకు ఎలా సహాయం చేయగలను?";
     }
 
     // Creator-specific override
@@ -87,6 +121,101 @@ class CommandService {
           text: `Searching YouTube for **${query}**...`,
           action: 'REDIRECT',
           url: `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`
+        };
+      }
+    }
+
+    // ==========================================
+    // 💻 NATIVE OS COMMANDS (Windows Base)
+    // ==========================================
+    if (lowerCmd.includes('mute') && (lowerCmd.includes('volume') || lowerCmd.includes('audio') || lowerCmd.includes('sound'))) {
+      if (os.platform() === 'win32') {
+        this.execPromise('powershell -Command "(New-Object -ComObject WScript.Shell).SendKeys([char]173)"');
+        return "Muting the system volume.";
+      }
+      return "Native OS controls are currently only active on Windows environments.";
+    }
+
+    if (lowerCmd.includes('empty') && (lowerCmd.includes('recycle bin') || lowerCmd.includes('trash'))) {
+      if (os.platform() === 'win32') {
+        this.execPromise('powershell -Command "Clear-RecycleBin -Force"');
+        return "I have emptied the recycle bin for you.";
+      }
+      return "Native OS controls are currently only active on Windows environments.";
+    }
+
+    if (lowerCmd.includes('put') && lowerCmd.includes('sleep') && (lowerCmd.includes('computer') || lowerCmd.includes('pc') || lowerCmd.includes('system'))) {
+      if (os.platform() === 'win32') {
+        setTimeout(() => { this.execPromise('rundll32.exe powrprof.dll,SetSuspendState 0,1,0'); }, 2000);
+        return "Putting the computer to sleep now.";
+      }
+      return "Native OS controls are currently only active on Windows environments.";
+    }
+
+    if (lowerCmd.includes('lock') && (lowerCmd.includes('computer') || lowerCmd.includes('pc') || lowerCmd.includes('screen'))) {
+      if (os.platform() === 'win32') {
+        this.execPromise('rundll32.exe user32.dll,LockWorkStation');
+        return "Locking the workstation.";
+      }
+      return "Native OS controls are currently only active on Windows environments.";
+    }
+
+    if (lowerCmd.includes('shut down') || lowerCmd.includes('shutdown')) {
+      if (lowerCmd.includes('confirm') || lowerCmd.includes('yes')) {
+        if (os.platform() === 'win32') {
+          this.execPromise('shutdown /s /t 10');
+          return "Goodbye. Giving you 10 seconds to save your work before shutting down.";
+        }
+        return "Native OS controls are currently only active on Windows environments.";
+      }
+      return "Are you sure you want to physically shut down the computer? Say 'confirm shutdown' to proceed.";
+    }
+
+    // ==========================================
+    // 📧 AI EMAIL DRAFTING
+    // ==========================================
+    if (lowerCmd.includes('draft an email') || lowerCmd.includes('write an email') || lowerCmd.includes('send an email')) {
+      // We use the AI to generate the draft, then open the local mail client!
+      logger.info("Email Drafting Triggered...");
+      const draftPrompt = `You are a professional email drafter. Write ONLY the email body text based on this request: "${command}". Do not include any greeting or conversational fluff from yourself, strictly output the email content ready to be pasted.`;
+
+      let aiDraftText = "";
+
+      // Fast-track through Gemini
+      if (this.geminiAvailable) {
+        try {
+          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+          const payload = {
+            contents: [{ role: "user", parts: [{ text: draftPrompt }] }],
+            generationConfig: { maxOutputTokens: 300 }
+          };
+          const gRes = await fetch(geminiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          if (gRes.ok) {
+            const gData = await gRes.json();
+            if (gData.candidates && gData.candidates[0].content && gData.candidates[0].content.parts[0].text) {
+              aiDraftText = gData.candidates[0].content.parts[0].text.trim();
+            }
+          }
+        } catch (e) { }
+      }
+
+      // Fallback Groq
+      if (!aiDraftText && this.openai) {
+        try {
+          const completion = await this.openai.chat.completions.create({
+            model: "llama-3.3-70b-versatile",
+            messages: [{ role: "user", content: draftPrompt }],
+            max_tokens: 300,
+          });
+          aiDraftText = completion.choices[0].message.content.trim();
+        } catch (e) { }
+      }
+
+      if (aiDraftText) {
+        return {
+          text: "I have drafted the email for you. Opening your secure mail client to review and send!",
+          action: 'REDIRECT',
+          url: `mailto:?subject=Drafted%20Email&body=${encodeURIComponent(aiDraftText)}`
         };
       }
     }
@@ -220,31 +349,30 @@ class CommandService {
       }
     }
 
-    // 2. Identity & Capabilities (with friendlier phrasing)
-    if (lowerCmd.includes('who are you') || lowerCmd.includes('your name') || lowerCmd.includes('what is the name')) {
-      return this.randomResponse([
-        "I'm AIVA, your friendly AI voice assistant.",
-        "They call me AIVA — always happy to help!",
-      ]);
+    // ==========================================
+    // 🏠 LOCAL JSON RESPONSES (No API Quota Used)
+    // ==========================================
+    // Dynamically pull responses.json so updates apply cleanly without requiring manual server reboots
+    try {
+      if (fs.existsSync(localResponsesPath)) {
+        localResponses = JSON.parse(fs.readFileSync(localResponsesPath, 'utf8'));
+      }
+    } catch (e) { }
+
+    // Trim punctuation to perfectly hit JSON keys (e.g. "hi." must trigger key "hi")
+    const cleanCmd = lowerCmd.replace(/[^a-z0-9\s]/gi, '').trim();
+
+    for (const [key, responses] of Object.entries(localResponses.greetings || {})) {
+      if (cleanCmd === key || cleanCmd.startsWith(`${key} `) || cleanCmd.endsWith(` ${key}`)) {
+        return this.randomResponse(responses);
+      }
     }
-    if (lowerCmd.includes('what can you do') || lowerCmd.includes('help') || lowerCmd.includes('how can you assist')) {
-      return this.randomResponse([
-        "I can chat, fetch info, control devices, tell jokes, and keep you company. Just ask away! 😄",
-        "Anything from answering questions to organizing your day — I'm here for you. 💡",
-      ]);
+    for (const [key, responses] of Object.entries(localResponses.smalltalk || {})) {
+      if (cleanCmd.includes(key)) {
+        return this.randomResponse(responses);
+      }
     }
-    if (lowerCmd.includes('how can i assist you')) {
-      return this.randomResponse([
-        "Just keep my code bug-free and our conversations interesting!",
-        "A friendly chat and some good commands go a long way."
-      ]);
-    }
-    if (lowerCmd.includes('who made you') || lowerCmd.includes('creator')) {
-      return this.randomResponse([
-        "I was brought to life by Debasmita and Babin — they're brilliant.",
-        "Debasmita and Babin built me. Give them a wave if you see them online!",
-      ]);
-    }
+
     if (lowerCmd.includes('change your voice') && (lowerCmd.includes('can you') || lowerCmd.includes('will you') || lowerCmd.includes('if i tell you'))) {
       return "Sure! Tell me 'change voice to' plus the name, and I'll switch to a new personality.";
     }
@@ -260,28 +388,6 @@ class CommandService {
       };
     }
 
-    // 3. Greetings & Small Talk
-    if (lowerCmd === 'hello' || lowerCmd === 'hi' || lowerCmd === 'hey' || lowerCmd.includes('good morning') || lowerCmd.includes('good evening')) {
-      return this.randomResponse([
-        "Hello! How can I be of service?",
-        "Hi there! What can I do for you today?",
-        "Hey! Ready when you are.",
-      ]);
-    }
-    if (lowerCmd.includes('how are you')) {
-      return this.randomResponse([
-        "I'm doing great — thanks for asking!",
-        "All systems go, thanks!",
-        "Feeling sharp and ready to help.",
-      ]);
-    }
-    if (lowerCmd.includes('thank you') || lowerCmd.includes('thanks')) {
-      return this.randomResponse([
-        "You're very welcome!",
-        "Anytime! Happy to help.",
-        "No problem at all!",
-      ]);
-    }
 
     // 4. Fun / Easter Eggs
     if (lowerCmd.includes('tell me a joke')) {
@@ -318,9 +424,9 @@ class CommandService {
     }
 
     // ==========================================
-    // 🧠 AI PROCESSING (Groq + Live Web Context)
+    // 🧠 AI PROCESSING (Gemini Primary -> Groq Fallback)
     // ==========================================
-    if (this.openai) {
+    if (this.geminiAvailable || this.openai) {
       try {
         const now = new Date().toLocaleString('en-US', {
           weekday: 'long',
@@ -337,9 +443,13 @@ class CommandService {
         try {
           logger.info(`Fetching web context for: ${command}`);
           const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+          const ddgController = new AbortController();
+          const ddgTimeout = setTimeout(() => ddgController.abort(), 1200); // Aggressive 1.2s max timeout for zero-latency feel
           const ddgHtmlRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(command)}`, {
-            headers: { 'User-Agent': userAgent }
+            headers: { 'User-Agent': userAgent },
+            signal: ddgController.signal
           });
+          clearTimeout(ddgTimeout);
           if (ddgHtmlRes.ok) {
             const html = await ddgHtmlRes.text();
 
@@ -364,76 +474,28 @@ class CommandService {
               }
             }
 
-            // Fetch actual content from top 2 result pages
-            let deepContent = "";
-            const deepFetches = resultUrls.slice(0, 2).map(async (pageUrl) => {
-              try {
-                const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 6000);
-                const pageRes = await fetch(pageUrl, {
-                  headers: { 'User-Agent': userAgent },
-                  signal: controller.signal,
-                  redirect: 'follow'
-                });
-                clearTimeout(timeout);
-                if (pageRes.ok) {
-                  const pageHtml = await pageRes.text();
-                  // Strip scripts, styles, and HTML tags to get text content
-                  let textContent = pageHtml
-                    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-                    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-                    .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
-                    .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '')
-                    .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
-                    .replace(/<[^>]*>/g, ' ')
-                    .replace(/&nbsp;/g, ' ')
-                    .replace(/&amp;/g, '&')
-                    .replace(/&lt;/g, '<')
-                    .replace(/&gt;/g, '>')
-                    .replace(/&#x27;/g, "'")
-                    .replace(/&quot;/g, '"')
-                    .replace(/\s+/g, ' ')
-                    .trim();
-                  // Take up to 1500 chars of relevant content
-                  if (textContent.length > 1500) textContent = textContent.substring(0, 1500) + '...';
-                  return `[Source: ${pageUrl}]\n${textContent}`;
-                }
-              } catch (e) {
-                logger.warn(`Deep fetch failed for ${pageUrl}: ${e.message}`);
-              }
-              return null;
-            });
-
-            const deepResults = (await Promise.all(deepFetches)).filter(Boolean);
-            if (deepResults.length > 0) {
-              deepContent = `\n\n=== DETAILED PAGE CONTENT (Scraped just now from top results) ===\n${deepResults.join('\n\n')}`;
-            }
-
-            if (snippets.length > 0 || deepResults.length > 0) {
-              webContext = `\n\n=== LIVE INTERNET KNOWLEDGE (Retrieved just now) ===\nYou have real-time internet access. Below are LIVE search results and page content scraped seconds ago. Use them to answer the user accurately.
+            // We skip heavy deep page fetches to radically reduce API response latency.
+            // DDG Snippets alone are enough for 99% of RAG context queries!
+            if (snippets.length > 0) {
+              webContext = `\n\n=== LIVE INTERNET KNOWLEDGE (Retrieved just now) ===\nYou have real-time internet access. Below are LIVE search results scraped seconds ago. Use them to answer the user accurately.
 CRITICAL RULES:
 1. NEVER say "my training data only goes up to" or "I don't have real-time access" — you DO have real-time access via these results.
 2. NEVER refuse to answer about 2024, 2025, 2026, or 2027 events — the data below contains the latest info.
 3. Synthesize ALL the information into a natural, confident answer.
 4. If the data contains specific facts (scores, standings, names, dates), present them directly.
-5. Prefer the DETAILED PAGE CONTENT over snippets.
-6. If asked about a points table or standings, present the data in a clear, organized format.
-7. CRITICAL: DO NOT HALLUCINATE OR GUESS. If the LIVE INTERNET KNOWLEDGE does not explicitly mention player names or scores for 2026, DO NOT invent them.
-8. DATA INTEGRITY: If the context does NOT contain the specific answer, say "I couldn't find the specific details in the latest reports" rather than making up a list. Note: Virat Kohli retired from T20Is in 2024, so do not include him in 2026 stats unless explicitly found.
+5. If asked about a points table or standings, present the data in a clear, organized format.
+6. CRITICAL: DO NOT HALLUCINATE OR GUESS. If the LIVE INTERNET KNOWLEDGE does not explicitly mention player names or scores for 2026, DO NOT invent them.
+7. DATA INTEGRITY: If the context does NOT contain the specific answer, say "I couldn't find the specific details in the latest reports" rather than making up a list. Note: Virat Kohli retired from T20Is in 2024, so do not include him in 2026 stats unless explicitly found.
 Web Snippets:
-- ${snippets.join('\n- ')}${deepContent}`;
-              logger.info(`Web context loaded: ${snippets.length} snippets, ${deepResults.length} deep pages`);
+- ${snippets.join('\n- ')}`;
+              logger.info(`Web context loaded: ${snippets.length} snippets`);
             }
           }
         } catch (e) {
           logger.warn("Web scrape for LLM context failed:", e.message);
         }
 
-        // Prepare messages for Grok
-        const messages = [
-          {
-            role: "system",
-            content: `You are AIVA, a calm, intelligent, friendly, and conversational voice assistant inspired by JARVIS. You were created by Debasmita Bose and Babin Bid.
+        const systemPrompt = `You are AIVA, a calm, intelligent, friendly, and conversational voice assistant inspired by JARVIS. You were created by Debasmita Bose and Babin Bid.
 Current Date & Time: ${now}
 You have FULL real-time internet access. You can answer questions about ANY event from ANY year including 2024, 2025, 2026, 2027 and beyond.
 NEVER say your training data is limited. NEVER say you cannot access real-time information. NEVER suggest the user check other websites.
@@ -443,44 +505,82 @@ Make the user feel like they're talking to a helpful friend.
 Feel free to use markdown formatting like **bold** and *italic* to emphasize important words or names.
 Do not repeat the user's input.
 Be accurate, context-aware, and show a bit of wit or charm when appropriate.
-Keep responses concise (2-4 sentences for simple queries, more for detailed ones).${webContext}`
-          },
-          ...this.chatHistory,
-          { role: "user", content: command }
-        ];
+Keep responses concise (2-4 sentences for simple queries, more for detailed ones).${webContext}`;
 
-        const completion = await this.openai.chat.completions.create({
-          model: "llama-3.3-70b-versatile",
-          messages: messages,
-          max_tokens: 600,
-        });
+        let aiTextResponse = "";
 
-        const text = completion.choices[0].message.content;
+        // 1. Primary AI: Gemini
+        if (this.geminiAvailable) {
+          try {
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
-        // Update local history
-        this.chatHistory.push({ role: "user", content: command });
-        this.chatHistory.push({ role: "assistant", content: text });
+            const geminiHistory = this.chatHistory.map(m => ({
+              role: m.role === "assistant" ? "model" : "user",
+              parts: [{ text: m.content }]
+            }));
 
-        // Limit history size
-        if (this.chatHistory.length > 20) {
-          this.chatHistory = this.chatHistory.slice(this.chatHistory.length - 20);
+            const payload = {
+              contents: [...geminiHistory, { role: "user", parts: [{ text: command }] }],
+              systemInstruction: { parts: [{ text: systemPrompt }] },
+              generationConfig: { maxOutputTokens: 600 }
+            };
+
+            const gRes = await fetch(geminiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            if (gRes.ok) {
+              const gData = await gRes.json();
+              if (gData.candidates && gData.candidates[0].content && gData.candidates[0].content.parts[0].text) {
+                aiTextResponse = gData.candidates[0].content.parts[0].text;
+              }
+            } else if (gRes.status === 429) {
+              logger.warn("Gemini limit exceeded. Switching to Groq fallback.");
+            } else {
+              logger.warn(`Gemini API Error: ${gRes.status}`);
+            }
+          } catch (geminiErr) {
+            logger.warn("Gemini Fetch Error, falling back to Groq:", geminiErr.message);
+          }
         }
 
-        return text;
+        // 2. Secondary AI: Groq Fallback
+        if (!aiTextResponse && this.openai) {
+          logger.info('Using Groq fallback...');
+          const messages = [
+            { role: "system", content: systemPrompt },
+            ...this.chatHistory,
+            { role: "user", content: command }
+          ];
+          const completion = await this.openai.chat.completions.create({
+            model: "llama-3.3-70b-versatile",
+            messages: messages,
+            max_tokens: 600,
+          });
+          aiTextResponse = completion.choices[0].message.content;
+        }
+
+        if (aiTextResponse) {
+          // Update history
+          this.chatHistory.push({ role: "user", content: command });
+          this.chatHistory.push({ role: "assistant", content: aiTextResponse });
+          if (this.chatHistory.length > 20) {
+            this.chatHistory = this.chatHistory.slice(this.chatHistory.length - 20);
+          }
+          return aiTextResponse;
+        } else {
+          logger.error('Both Gemini and Groq failed to respond.');
+          return "I'm having trouble connecting to my cloud brain right now. Please try again later when traffic subsides.";
+        }
       } catch (error) {
-        logger.error('Grok API Error:', error);
-
-        if (error.status === 401) {
-          return "My AI access key appears to be invalid. Please check my configuration.";
-        }
-        if (error.status === 429) {
-          return "My connection to the cloud is currently limited due to high traffic.";
-        }
-        return "I'm having trouble connecting to my brain right now. Please try again.";
+        logger.error('AI Routing Error:', error);
+        return "I'm having unexpected trouble connecting to my brain right now. Please try again.";
       }
     }
 
-    return "I'm sorry, but my AI brain is currently offline. Please check my configuration.";
+    return "I'm sorry, but my AI brain is currently offline. Please check my configuration keys.";
   }
 
   logTelemetry(data) {
