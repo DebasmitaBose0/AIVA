@@ -40,7 +40,8 @@ export default function Home() {
   const [isTextMode, setIsTextMode] = useState(false);
 
   const languageNames = {
-    hi: 'Hindi', en: 'English'
+    en: 'English', hi: 'Hindi', bn: 'Bengali', ta: 'Tamil', te: 'Telugu',
+    mr: 'Marathi', gu: 'Gujarati', kn: 'Kannada', ml: 'Malayalam', pa: 'Punjabi', ur: 'Urdu'
   };
 
   const voiceRef = useRef(null);
@@ -143,11 +144,13 @@ export default function Home() {
       const all = window.speechSynthesis.getVoices();
       const filtered = all.filter(v => {
         const l = v.lang.toLowerCase();
-        // Support English
-        if (l.startsWith('en')) return true;
-        // Support Hindi (Filter down to Microsoft Hemant (Male) and Microsoft Kalpana/Swara (Female) if possible)
-        if (l.startsWith('hi')) {
-          // Broadly accept any Hindi voice to maintain OS compatibility
+        // Support English and all major Indian regional languages
+        if (
+          l.startsWith('en') || l.startsWith('hi') || l.startsWith('bn') ||
+          l.startsWith('ta') || l.startsWith('te') || l.startsWith('mr') ||
+          l.startsWith('gu') || l.startsWith('kn') || l.startsWith('ml') ||
+          l.startsWith('pa') || l.startsWith('ur')
+        ) {
           return true;
         }
         return false;
@@ -493,7 +496,7 @@ export default function Home() {
     { icon: Mic, title: "Voice Control", desc: "Natural speech input" },
     { icon: Globe, title: "Smart Search", desc: "Real-time web browsing" },
     { icon: CloudSun, title: "Live Weather", desc: "City-level accuracy" },
-    { icon: Cpu, title: "AI Powered", desc: "Llama 3.3 70B via Groq" },
+    { icon: Cpu, title: "AI Powered", desc: "Dual Gemini + Groq" },
     { icon: Laugh, title: "Mood Scan", desc: "AI personality based on your face", action: runMoodScan },
   ];
 
