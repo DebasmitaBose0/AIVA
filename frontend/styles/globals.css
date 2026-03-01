@@ -27,10 +27,10 @@
   --radius-lg: 24px;
 
   /* Font families */
-  --font-heading: 'Chakra Petch', 'Orbitron', sans-serif;
-  --font-body: 'Space Grotesk', 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
-  --font-display: 'Orbitron', sans-serif;
+  --font-heading: 'Roca 1', 'Roca One', 'Chakra Petch', 'Orbitron', sans-serif;
+  --font-body: 'Roca 2', 'Roca Two', 'Space Grotesk', 'Segoe UI', sans-serif;
+  --font-mono: 'Roca 2', 'Roca Two', 'JetBrains Mono', 'Courier New', monospace;
+  --font-display: 'Roca 1', 'Roca One', 'Orbitron', sans-serif;
 }
 
 body {
@@ -563,16 +563,6 @@ body::before {
   color: var(--accent3);
 }
 
-.feature-chip:nth-child(5) {
-  grid-column: 1 / -1;
-  justify-self: center;
-  min-width: 260px;
-}
-
-.feature-chip:nth-child(5) .chip-icon {
-  color: #ff007f;
-  /* Vibrant scan color */
-}
 
 .chip-text h4 {
   font-family: var(--font-heading);
@@ -1387,75 +1377,6 @@ body::before {
   }
 }
 
-/* 📷 Mood Cam Overlay */
-.mood-cam-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.8);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: fadeIn 0.3s ease;
-}
-
-.mood-cam-window {
-  width: 320px;
-  background: #000;
-  border: 2px solid var(--primary);
-  border-radius: 12px;
-  overflow: hidden;
-  position: relative;
-  box-shadow: 0 0 40px var(--primary-glow);
-  text-align: center;
-  padding-bottom: 20px;
-}
-
-.mood-cam-window video {
-  width: 100%;
-  height: 200px;
-  object-fit: cover;
-  filter: grayscale(0.5) contrast(1.2);
-}
-
-.mood-cam-scanning {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background: var(--primary);
-  box-shadow: 0 0 15px var(--primary);
-  animation: scan-move 2s infinite ease-in-out;
-}
-
-@keyframes scan-move {
-  0% {
-    top: 0;
-  }
-
-  50% {
-    top: 200px;
-  }
-
-  100% {
-    top: 0;
-  }
-}
-
-.mood-cam-window p {
-  padding-top: 15px;
-  font-family: 'Orbitron', sans-serif;
-  font-size: 0.8rem;
-  color: var(--primary);
-  letter-spacing: 2px;
-  margin: 0;
-}
 
 @media (max-width: 768px) {
   .wake-word-control span {
