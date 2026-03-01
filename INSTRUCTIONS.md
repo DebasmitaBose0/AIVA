@@ -15,11 +15,9 @@ AIVA is a full-stack, JARVIS-inspired web-based voice assistant. It delivers an 
 - 🌦️ Weather information *(OpenWeatherMap + WeatherAPI fallback)*
 - 🏏 **Live Sports Scores** *(CricketData + API-Football)* — real-time, ball-by-ball
 - 📰 Live News & Headlines *(GNews API)*
-- 🌐 **Real-Time Web Search** *(DuckDuckGo HTML scraping)* — enables answering about any current event
-- 🤖 **Universal Conversational AI** — Uses **Gemini 1.5 Flash** as primary engine, intelligently falling back to **Llama 3.3 70B** (Groq) if quotas are exceeded
+- 🤖 **Universal Conversational AI** — Uses **Gemini 2.5 Flash** as primary engine, intelligently falling back to **Llama 3.3 70B** (Groq) if quotas are exceeded
 - 💻 **Native OS Control (Windows)** — Command AIVA to mute volume, lock screen, sleep PC, or empty the recycle bin
 - 📧 **Smart Email Drafting** — Tell AIVA to draft an email; it generates the content and opens your mail client ready to send
-- 🎭 **Facial Mood Recognition** — Capture a photo via camera and let AIVA's personality adapt to your mood (Powered by Gemini)
 - ⌨️ **Text/Type Mode** — switch between voice and keyboard input
 
 ---
@@ -32,7 +30,7 @@ AIVA uses multiple APIs working together. Each serves a specific role:
 
 | Key | Service | Purpose |
 |-----|---------|---------|
-| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/) | **Primary AI Engine** -> Powers AIVA's conversational brain and Mood Scan image analysis. High quota, extremely fast. |
+| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/) | **Primary AI Engine** -> Powers AIVA's conversational brain. High quota, extremely fast. |
 | `GROQ_API_KEY` | [Groq Cloud](https://console.groq.com) | **Secondary AI Engine** -> Fallback engine (Llama 3.3) used automatically if Gemini's API limit is exceeded or unresponsive. |
 
 ### 🌦️ Weather APIs (Primary + Fallback)
@@ -49,28 +47,7 @@ AIVA uses multiple APIs working together. Each serves a specific role:
 | `CRICKET_API_KEY` | [CricketData.org](https://cricketdata.org/) | Fetches **live, real-time cricket match scores** — team names, current status, ball-by-ball updates. Triggered when you ask about cricket + score/match/live. |
 | `SPORTS_API_KEY` | [API-Football](https://dashboard.api-football.com/) | Fetches **live football/soccer match scores** — teams, goals, match status. Triggered when you ask about football + score/match. |
 
-> **How do Sports APIs work with Web Search?**
-> - When you ask *"What's the live cricket score?"* → AIVA checks the **Cricket API first** for real-time structured data (instant, accurate scores).
-> - When you ask *"What happened in the England vs NZ match in the 2026 World Cup?"* → No live match is running, so AIVA uses **Web Search + AI** to find and summarize the result from the internet.
-> - **Sports APIs = live scores happening RIGHT NOW.** **Web Search = past results, upcoming info, analysis, and any other query.**
 
-### 📰 News API
-
-| Key | Service | Purpose |
-|-----|---------|---------|
-| `NEWS_API_KEY` | [GNews.io](https://gnews.io/) | Fetches the latest news headlines when you ask for news. Returns top 5 headlines with titles. |
-
-### 🎭 Vision & Personality
-
-| Key | Service | Purpose |
-|-----|---------|---------|
-| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/) | This same key also powers **Facial Mood Recognition**. Analyzes images captured by the user's camera to determine their mood (Happy, Sad, etc.) and naturally injects it into AIVA's personality. |
-
-### 🌐 Web Search (No API Key Needed)
-
-| Service | Purpose |
-|---------|---------|
-| DuckDuckGo HTML Scraping | **No API key required.** AIVA automatically scrapes DuckDuckGo search results and feeds up to 5 live web snippets directly into the AI's brain (RAG). This enables AIVA to answer about ANY current event (2024, 2025, 2026, and beyond) without being limited by the LLM's training data. |
 
 ---
 
@@ -86,8 +63,7 @@ The backend securely processes commands, interacts with external APIs, and manag
 | 🛣️ `backend/routes/voice.js` | `POST /api/voice` endpoint — validates payload, delegates to commandService |
 | 🧠 `backend/services/commandService.js` | **Core brain** — local phrases, weather, live scores, news, web search RAG, and dual-routing AI (Gemini + Groq) |
 | 🗃️ `backend/data/responses.json` | **Offline Lexicon** — stores hundreds of standard greetings and small-talk to bypass API calls (saving limits) |
-| 👁️ `backend/services/visionService.js` | **Visual brain** — mood detection using Gemini Vision API |
-| 📝 `backend/logger.js` | Winston logger — records events/errors to `backend/logs/` |
+|  `backend/logger.js` | Winston logger — records events/errors to `backend/logs/` |
 | 🔒 `backend/middleware/auth.js` | API key authentication — checks `x-api-key` header (bypassed in dev) |
 | ⚙️ `backend/.env` | Environment variables — all API keys (see below) |
 | 📄 `backend/.env.example` | Template for API keys — copy this to `.env` and fill in your keys |
@@ -239,7 +215,6 @@ User speaks or types a command
 | 📋 **Copy Chat** | Copies full conversation to clipboard (bottom right) |
 | 🗑️ **Clear Chat** | Wipes session history |
 | 🎙️ **Mic/Voice Toggle** | Tap to start/stop listening |
-| 🎭 **Mood Scan** | AI personality adjustment based on your face |
 | 📋 **Copy Message** | Find the small copy button on individual message bubbles |
 | ⌨️ **Text Mode** | Say "enable text mode" or click the status bar to type |
 | 💡 **Suggestion Chips** | Quick commands — time, date, weather, jokes, identity |
@@ -253,7 +228,7 @@ User speaks or types a command
 |---------|---------
 | 🌐 Frontend URL | `http://localhost:3000` |
 | 🔙 Backend URL | `http://localhost:5000` |
-| 🤖 AI Model | `Gemini 1.5 Flash` (Primary) / `Llama 3.3 70B` (Fallback) |
+| 🤖 AI Model | `Gemini 2.5 Flash` (Primary) / `Llama 3.3 70B` (Fallback) |
 | 🧪 Health Check | `GET http://localhost:5000/health` |
 | 👥 Creators | Debasmita Bose & Babin Bid |
 
