@@ -501,7 +501,7 @@ export default function Home() {
     { icon: Mic, title: "Voice Control", desc: "Natural speech input" },
     { icon: Globe, title: "Smart Search", desc: "Real-time web browsing" },
     { icon: CloudSun, title: "Live Weather", desc: "City-level accuracy" },
-    { icon: Cpu, title: "AI Powered", desc: "Dual Gemini + Groq" },
+    { icon: Cpu, title: "AI Powered", desc: "Llama 3.3 70B" },
   ];
 
   const suggestions = [
