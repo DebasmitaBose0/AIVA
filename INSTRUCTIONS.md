@@ -109,6 +109,9 @@ The frontend captures voice input, plays synthesized speech, and renders the fut
 | 🧠 `frontend/services/commandService.js` | Client-side fallback — local time/date when backend unavailable |
 | 🎨 `frontend/styles/globals.css` | **Full design system** — CSS variables, layout, animations, glassmorphism, text mode styling, responsive breakpoints |
 | 🖼️ `frontend/public/favicon.svg` | Browser tab icon |
+| ⚙️ `frontend/next.config.js` | React/Next.js compiler configuration (e.g., hides React strict-mode developer logs) |
+| 🔑 `frontend/.env` | Next.js environment variables (e.g., `NEXT_PUBLIC_API_KEY`) |
+| 📄 `frontend/.env.example` | Template for frontend environment keys |
 | 📦 `frontend/package.json` | Dependencies: Next.js, React, Lucide Icons |
 
 ---
