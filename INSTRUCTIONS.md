@@ -75,6 +75,7 @@ The backend securely processes commands, interacts with external APIs, and manag
 | 🟢 `backend/server.js` | Entry point — port config (`5000`), CORS, JSON parsing, routes |
 | 🛣️ `backend/routes/voice.js` | `POST /api/voice` endpoint — validates payload, delegates to commandService |
 | 🧠 `backend/services/commandService.js` | **Core brain** — multilingual greetings, time/date, weather (dual API), live cricket scores, live football scores, news headlines, web search RAG, and Groq AI with rolling 20-message context |
+| 🗃️ `backend/data/responses.json` | **Offline Lexicon** — stores hundreds of standard greetings and small-talk responses to bypass API calls instantly. |
 | 📝 `backend/logger.js` | Winston logger — records events/errors to `backend/logs/` |
 | 🔒 `backend/middleware/auth.js` | API key authentication — checks `x-api-key` header (bypassed in dev) |
 | ⚙️ `backend/.env` | Environment variables — all API keys (see below) |
