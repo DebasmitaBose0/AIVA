@@ -25,6 +25,7 @@ if (fs.existsSync(localResponsesPath)) {
 class CommandService {
   constructor() {
     this.openai = null;
+    this.geminiAvailable = !!process.env.GEMINI_API_KEY;
     this.chatHistory = []; // Store conversation history
     this.initAI();
   }
@@ -51,39 +52,24 @@ class CommandService {
         apiKey: process.env.GROQ_API_KEY,
         baseURL: "https://api.groq.com/openai/v1",
       });
-      logger.info('Groq API initialized as primary AI engine.');
+      logger.info('Groq API initialized as fallback limit handler.');
     } else {
-      logger.error('GROQ_API_KEY is not set. AI brain disabled.');
+      logger.warn('GROQ_API_KEY is not set. Groq fallback disabled.');
+    }
+
+    if (this.geminiAvailable) {
+      logger.info('Gemini API identified for primary routing using Gemini 2.5 Flash.');
+    } else {
+      logger.warn('GEMINI_API_KEY is not set. Will default to Groq if available.');
     }
   }
 
   async processCommand(command) {
-    // Auto-detect if command needs punctuation and apply it
+    // Process exactly what the user said (no artificial punctuation injected)
     let punctuatedCommand = command.trim();
-    if (!/[.!?]$/.test(punctuatedCommand)) {
-      const questionWords = ['what', 'when', 'where', 'who', 'whom', 'which', 'whose', 'why', 'how', 'is', 'are', 'do', 'does', 'did', 'can', 'could', 'should', 'would', 'will', 'shall', 'may', 'might'];
-      const exclamatoryWords = ['wow', 'amazing', 'great', 'awesome', 'terrible', 'horrible', 'damn', 'fuck', 'shit', 'omg', 'yay', 'hurray', 'gosh', 'insane', 'crazy', 'unbelievable', 'wtf'];
-
-      const firstWord = punctuatedCommand.split(' ')[0].toLowerCase();
-
-      const isQuestion = questionWords.includes(firstWord);
-      const isExclamatory = exclamatoryWords.some(w => punctuatedCommand.toLowerCase().includes(w));
-
-      if (isQuestion && isExclamatory) {
-        punctuatedCommand += '?!';
-      } else if (isQuestion) {
-        punctuatedCommand += '?';
-      } else if (isExclamatory) {
-        punctuatedCommand += '!';
-      } else {
-        punctuatedCommand += '.';
-      }
-    }
 
     logger.info(`Processing command: ${punctuatedCommand}`);
     const lowerCmd = punctuatedCommand.toLowerCase();
-
-    // quick Indian language offline fallback greetings
     if (lowerCmd.includes('namaste') || lowerCmd.includes('नमस्ते')) {
       return "नमस्ते! मैं AIVA हूँ, आपकी सहायक. मैं आपकी कैसे मदद कर सकती हूँ?";
     }
@@ -198,8 +184,28 @@ class CommandService {
       logger.info("Email Drafting Triggered...");
       const draftPrompt = `You are a professional email drafter. Write ONLY the email body text based on this request: "${command}". Do not include any greeting or conversational fluff from yourself, strictly output the email content ready to be pasted.`;
 
-      // Email drafting via Groq (Primary)
-      if (this.openai) {
+      let aiDraftText = "";
+
+      // Fast-track through Gemini 2.5 Flash
+      if (this.geminiAvailable) {
+        try {
+          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+          const payload = {
+            contents: [{ role: "user", parts: [{ text: draftPrompt }] }],
+            generationConfig: { maxOutputTokens: 300 }
+          };
+          const gRes = await fetch(geminiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          if (gRes.ok) {
+            const gData = await gRes.json();
+            if (gData.candidates && gData.candidates[0].content && gData.candidates[0].content.parts[0].text) {
+              aiDraftText = gData.candidates[0].content.parts[0].text.trim();
+            }
+          }
+        } catch (e) { }
+      }
+
+      // Email drafting via Groq (Fallback)
+      if (!aiDraftText && this.openai) {
         try {
           const completion = await this.openai.chat.completions.create({
             model: "llama-3.3-70b-versatile",
@@ -431,9 +437,9 @@ class CommandService {
     }
 
     // ==========================================
-    // 🧠 AI PROCESSING (Groq Primary)
+    // 🧠 AI PROCESSING (Gemini 2.5 Flash Primary -> Groq Fallback)
     // ==========================================
-    if (this.openai) {
+    if (this.geminiAvailable || this.openai) {
       try {
         const now = new Date().toLocaleString('en-US', {
           weekday: 'long',
@@ -460,9 +466,71 @@ Keep responses concise (2-4 sentences for simple queries, more for detailed ones
 
         let aiTextResponse = "";
 
-        // AI Generation via Groq
-        if (this.openai) {
-          logger.info('Routing to Groq API...');
+        // 1. Primary AI: Gemini 2.5 Flash
+        if (this.geminiAvailable) {
+          try {
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+
+            const geminiHistory = this.chatHistory.map(m => ({
+              role: m.role === "assistant" ? "model" : "user",
+              parts: [{ text: m.content }]
+            }));
+
+            const payload = {
+              contents: [...geminiHistory, { role: "user", parts: [{ text: command }] }],
+              systemInstruction: { parts: [{ text: systemPrompt }] },
+              generationConfig: { maxOutputTokens: 600 }
+            };
+
+            const controller = new AbortController();
+            const fetchTimeout = setTimeout(() => controller.abort(), 12000);
+
+            const gRes = await fetch(geminiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+              signal: controller.signal
+            });
+            clearTimeout(fetchTimeout);
+
+            if (gRes.ok) {
+              const gData = await gRes.json();
+              if (gData.candidates && gData.candidates[0].content && gData.candidates[0].content.parts[0].text) {
+                aiTextResponse = gData.candidates[0].content.parts[0].text;
+              }
+            } else if (gRes.status === 429) {
+              logger.warn("Gemini limit exceeded. Retrying once after 10 seconds...");
+              await new Promise(resolve => setTimeout(resolve, 10000));
+
+              const retryCtrl = new AbortController();
+              const retryTimeout = setTimeout(() => retryCtrl.abort(), 12000);
+              const retryRes = await fetch(geminiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: retryCtrl.signal
+              });
+              clearTimeout(retryTimeout);
+
+              if (retryRes.ok) {
+                const retryData = await retryRes.json();
+                if (retryData.candidates && retryData.candidates[0].content && retryData.candidates[0].content.parts[0].text) {
+                  aiTextResponse = retryData.candidates[0].content.parts[0].text;
+                }
+              } else {
+                logger.warn("Gemini limit persisted. Fast-switching to Groq fallback.");
+              }
+            } else {
+              logger.warn(`Gemini API Error: ${gRes.status}`);
+            }
+          } catch (geminiErr) {
+            logger.warn("Gemini Fetch Error, falling back to Groq:", geminiErr.message);
+          }
+        }
+
+        // 2. Secondary AI: Groq Fallback
+        if (!aiTextResponse && this.openai) {
+          logger.info('Using Groq fallback...');
           const messages = [
             { role: "system", content: systemPrompt },
             ...this.chatHistory,
