@@ -447,10 +447,21 @@ export default function Home() {
     cleanedText = cleanedText.replace(/[\u{2600}-\u{26FF}]/gu, ''); // Misc symbols
     cleanedText = cleanedText.replace(/[\u{2700}-\u{27BF}]/gu, ''); // Dingbats
 
-    // Prevent English/Hindi TTS voices from attempting to speak natively generated Indian texts (like Bengali) via fallback
-    if (/[\u0980-\u09FF\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\u0A80-\u0AFF]/.test(cleanedText)) {
-      // Disable TTS for non-Hindi/English responses to prevent broken phonetic reading
-      console.log("Muted unsupported TTS language block.");
+    // Prevent English TTS voices from attempting to speak natively generated Indian texts
+    const isHindiScript = /[\u0900-\u097F]/.test(cleanedText);
+    const isOtherIndianScript = /[\u0980-\u09FF\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\u0A80-\u0AFF]/.test(cleanedText);
+    const voiceLang = (voiceRef.current?.lang || '').toLowerCase();
+
+    // If text contains non-Hindi Indian scripts, check if selected voice natively supports it
+    if (isOtherIndianScript) {
+      if (!voiceLang.includes('bn') && !voiceLang.includes('ta') && !voiceLang.includes('te') && !voiceLang.includes('mr') && !voiceLang.includes('gu') && !voiceLang.includes('kn') && !voiceLang.includes('ml') && !voiceLang.includes('pa')) {
+        console.log("Muted unsupported TTS language block (Text contains regional script but NO regional voice selected).");
+        return;
+      }
+    }
+    // If text contains Hindi script, check if voice supports Hindi
+    if (isHindiScript && !voiceLang.includes('hi') && !voiceLang.includes('mr') && !voiceLang.includes('ne')) {
+      console.log("Muted unsupported TTS language block (Text contains Devanagari but NO Hindi/Marathi voice selected).");
       return;
     }
 
@@ -495,9 +506,9 @@ export default function Home() {
 
   const suggestions = [
     { icon: Clock, label: "What time is it?", cmd: "What is the time?" },
-    { icon: CloudSun, label: "Weather in Delhi", cmd: "What is the weather in Delhi?" },
-    { icon: Globe, label: "Latest News", cmd: "Give me the latest news headlines" },
     { icon: Laugh, label: "Tell me a joke", cmd: "Tell me a joke" },
+    { icon: Globe, label: "Tell me a fun fact", cmd: "Tell me a fun fact" },
+    { icon: Mic, label: "Who are you?", cmd: "Who are you?" },
   ];
 
   // Format basic markdown (bold and italic) and inject CSS Wave
