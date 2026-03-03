@@ -38,5 +38,4 @@ app.get("/health", (req, res) => {
 // ================= START SERVER =================
 app.listen(PORT, () => {
   console.log(`🚀 AIVA Backend running on port ${PORT}`);
-  require('fs').writeFileSync('server_up.txt', `Running on ${PORT}`);
 });

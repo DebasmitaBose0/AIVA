@@ -28,8 +28,6 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [startIconIndex, setStartIconIndex] = useState(0);
   const startIcons = [Shield, Mic, Radio, Activity, Globe];
-  const [startBgIndex, setStartBgIndex] = useState(0);
-  const startBackgrounds = ['/aiva_bg1.png', '/aiva_bg2.png'];
   const [isProcessing, setIsProcessing] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
   const [textInput, setTextInput] = useState("");
@@ -101,23 +99,18 @@ export default function Home() {
 
   useEffect(() => { voicesRef.current = voices; }, [voices]);
 
-  // Handle start overlays rotating icons and backgrounds
+  // Handle start overlays rotating icons
   useEffect(() => {
     if (!isLoading && !systemStarted) {
       const iconInterval = setInterval(() => {
         setStartIconIndex(prev => (prev + 1) % startIcons.length);
       }, 1500);
 
-      const bgInterval = setInterval(() => {
-        setStartBgIndex(prev => (prev + 1) % startBackgrounds.length);
-      }, 6000); // Cross-fade background every 6 seconds
-
       return () => {
         clearInterval(iconInterval);
-        clearInterval(bgInterval);
       };
     }
-  }, [isLoading, systemStarted, startIcons.length, startBackgrounds.length]);
+  }, [isLoading, systemStarted, startIcons.length]);
   useEffect(() => {
     voiceRef.current = selectedVoice;
     if (recognitionRef.current && selectedVoice) {
@@ -175,7 +168,10 @@ export default function Home() {
       const rec = new SpeechRec();
       rec.continuous = true;
       rec.interimResults = true;
-      rec.lang = "en-US";
+
+      // Defaulting to en-IN gives us the highest level of bilingual 
+      // English + Indian language recognition without manually switching.
+      rec.lang = "en-IN";
 
       rec.onstart = () => {
         setIsListening(true);
@@ -447,24 +443,6 @@ export default function Home() {
     cleanedText = cleanedText.replace(/[\u{2600}-\u{26FF}]/gu, ''); // Misc symbols
     cleanedText = cleanedText.replace(/[\u{2700}-\u{27BF}]/gu, ''); // Dingbats
 
-    // Prevent English TTS voices from attempting to speak natively generated Indian texts
-    const isHindiScript = /[\u0900-\u097F]/.test(cleanedText);
-    const isOtherIndianScript = /[\u0980-\u09FF\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\u0A80-\u0AFF]/.test(cleanedText);
-    const voiceLang = (voiceRef.current?.lang || '').toLowerCase();
-
-    // If text contains non-Hindi Indian scripts, check if selected voice natively supports it
-    if (isOtherIndianScript) {
-      if (!voiceLang.includes('bn') && !voiceLang.includes('ta') && !voiceLang.includes('te') && !voiceLang.includes('mr') && !voiceLang.includes('gu') && !voiceLang.includes('kn') && !voiceLang.includes('ml') && !voiceLang.includes('pa')) {
-        console.log("Muted unsupported TTS language block (Text contains regional script but NO regional voice selected).");
-        return;
-      }
-    }
-    // If text contains Hindi script, check if voice supports Hindi
-    if (isHindiScript && !voiceLang.includes('hi') && !voiceLang.includes('mr') && !voiceLang.includes('ne')) {
-      console.log("Muted unsupported TTS language block (Text contains Devanagari but NO Hindi/Marathi voice selected).");
-      return;
-    }
-
     const u = new SpeechSynthesisUtterance(cleanedText);
     const v = voiceRef.current;
     if (v) u.voice = v;
@@ -563,14 +541,6 @@ export default function Home() {
           {/* START OVERLAY */}
           {!systemStarted && (
             <div className="start-overlay">
-              {/* Cycling Backgrounds */}
-              {startBackgrounds.map((bg, idx) => (
-                <div
-                  key={bg}
-                  className={`start-bg-layer ${idx === startBgIndex ? 'active' : ''}`}
-                  style={{ backgroundImage: `url(${bg})` }}
-                />
-              ))}
 
               <div className="start-content">
                 <div className="start-icon-container">

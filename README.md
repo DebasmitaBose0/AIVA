@@ -17,15 +17,19 @@
 - 🔊 **Text-to-speech replies** with dynamic voices
 - 🌍 **Multilingual greetings** — Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi & English
 - 🎯 **Smart voice selection** — voices grouped by language with Indian accent prioritization
-- 🌦️ **Enhanced weather lookup** with OpenWeatherMap & WeatherAPI fallback
+- 🌦️ **Enhanced weather lookup** with WeatherAPI & OpenWeatherMap fallback
 - 🏏 **Live Sports Scores** — CricketData & API-Football integration
-- 📰 **Headlines Delivery** via GNews API
+- 📰 **Headlines Delivery** via GNews & NewsAPI.org fallback
+- 🧠 **Dynamic AI Search Hierarchy:**
+  1. Internal specialized modules (Weather, Sports, News)
+  2. Gemini 2.5 Flash (Primary)
+  3. Llama 3.3 70B via Groq (Secondary)
+  4. Tavily AI Web Search (Tertiary)
+  5. Google Custom Search Engine (Quaternary Backup)
 - ⌨️ **Dynamic Input Modes** — Switch between Voice Mode and Text/Type Mode by speaking (e.g., "enable type mode")
 - 💬 **Chat-centric UI** — mic embedded in input bar, suggestion chips, timestamps, copy/clear
 - 🔒 **Secure API** via `x-api-key` header (bypassed in dev mode)
-- 🎨 **Futuristic theme** — glassmorphism, neon glows, hacker-style boot loader
-- 🧠 **Dual AI Engine** — Gemini 2.5 Flash (Primary) + Llama 3.3 70B (Fallback)
-- 🎭 **Lucide Icons** — professional icon set throughout the UI
+- 🎨 **Futuristic glassmorphic theme** — featuring a stunning deep rose and hot pink color palette
 
 ---
 
@@ -45,6 +49,9 @@
    CRICKET_API_KEY=your_cricket_key
    SPORTS_API_KEY=your_sports_key
    NEWS_API_KEY=your_gnews_key
+   TVLY_API_KEY=your_tavily_key
+   GOOGLE_SEARCH_API_KEY=your_google_key
+   GOOGLE_SEARCH_CX=your_cx_engine_id
    ```
 4. ▶️ Run: `node server.js`
 

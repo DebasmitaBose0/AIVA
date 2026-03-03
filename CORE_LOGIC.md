@@ -39,23 +39,24 @@ Here is the exact step-by-step logic AIVA follows the moment you hit "Send" or s
 ## 📰 Priority 5: Real-Time News
 *If you ask "What are the top 5 news headlines?", AIVA triggers her news sequence:*
 
-- She intercepts the command and extracts the requested number (defaulting to 3, max 10).
-- She pings `GNews.io`, explicitly sorting the results by `publishedAt` to bypass any outdated caches and guarantee the freshest possible breaking news.
+1. **🥇 Primary Engine (`GNews.io`):** She intercepts the command, extracting the requested number of headlines, and pings `GNews.io`, sorting by `publishedAt` to guarantee fresh breaking news.
+2. **🥈 Fallback Engine (`NewsAPI.org`):** If GNews fails or hits its rate limit, AIVA instantly falls back to `NewsAPI.org` to ensure she never fails to deliver the world's top headlines.
 
-## 🧠 Priority 6: The AI Brain + Live Web Search (Ultimate Fallback)
+## 🧠 Priority 6: The AI Brain + Search Fallback (Ultimate Fallback)
 *If the command was NOT a greeting, NOT a weather check, NOT a live sports score, and NOT a desktop control... it must be a complex question (e.g., "Summarize quantum physics" or "Who won the US Election?"). AIVA now brings out the heavy artillery.*
 
-1. **🌐 Web Search (DuckDuckGo RAG):** Before talking to the AI, AIVA secretly scrapes DuckDuckGo. She grabs the top 5 most relevant live web snippets from the internet regarding your exact question.
-2. **🧩 Context Injection:** She injects these live web snippets, along with the exact current time and date, directly into the AI's "System Prompt". This makes the AI "aware" of the present timeline and current events!
-3. **🤖 Dual AI Engine Generation:** AIVA first calls **Gemini 2.5 Flash** (Primary). It's incredibly fast, parses the web snippets, and generates a brilliant, context-aware answer.
-4. **⚠️ Groq Llama 3.3 70B Fallback:** If Gemini's free tier hits a rate limit or goes down, AIVA seamlessly and instantly catches the error and re-routes the exact same prompt to **Groq Llama 3.3 70B** as her bulletproof backup brain!
-5. **⚠️ Error Handling:** If both systems experience heavy traffic, AIVA safely catches the error and tells the user: *"I'm having trouble connecting to my cloud brain right now..."*
+1. **🥇 Primary AI Generation (`Gemini 2.5 Flash`):** AIVA calls Gemini. It is incredibly fast and parses standard intelligence queries with a brilliant, context-aware answer.
+2. **🥈 Secondary AI Backup (`Groq Llama 3.3 70B`):** If Gemini reaches its API limits or goes offline, AIVA flawlessly catches the error and instantly re-routes the exact same prompt to **Groq Llama 3.3 70B** as her bulletproof backup brain.
+3. **🥉 Tertiary Web Search (`Tavily AI`):** If both AI models fail, or if the system specifically falls down the intelligence hierarchy, AIVA pings **Tavily AI Search** to pull highly structured, real-time internet context directly to the user.
+4. **🎖️ Quaternary Web Search (`Google Programmable Search`):** If Tavily is unreachable, she invokes a final failsafe, using **Google Custom Search Engine** to scrape directly from Google's index.
+5. **⚠️ Error Handling:** If all four redundant intelligence and search layers experience failure, AIVA safely catches the error and tells the user: *"I'm having trouble connecting to my cloud brain and search engines right now..."*
 
 ---
 
 ### 🎓 Summary of the Flow:
 1. **Local JSON & Rules** *(0ms - Free)* -> Matches? **YES** -> Talk!
 2. **OS/Email Controls** *(Fast - Free)* -> Matches? **YES** -> Execute!
-3. **Targeted APIs (Weather/News/Live Sports)** -> Matches? **YES** -> Talk!
-4. **DuckDuckGo Web Scrape** -> Feeds into AI Brain.
-5. **Dual AI (Gemini 2.5 Flash -> Groq Llama 3.3)** -> Generates final intelligent response.
+3. **Targeted APIs (Weather/News/Live Sports)** -> Dual-layer Fallbacks -> Matches? **YES** -> Talk!
+4. **Primary AI (Gemini 2.5 Flash)** -> Generates intelligent response.
+5. **Secondary AI (Groq Llama 3.3)** -> Fallback text generation.
+6. **Web Search Fallbacks (Tavily -> Google)** -> Final failsafe for external queries.

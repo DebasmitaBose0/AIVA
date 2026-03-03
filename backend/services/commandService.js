@@ -255,21 +255,24 @@ class CommandService {
     }
 
     // 1. Time & Date (with varied replies)
-    // Exclude "temperature" or "weather" queries from matching "day" or "date"
     const isWeatherQuery = lowerCmd.includes('temperature') || lowerCmd.includes('weather');
+    const isSportsQuery = lowerCmd.includes('cricket') || lowerCmd.includes('football') || lowerCmd.includes('sport') || lowerCmd.includes('score') || lowerCmd.includes('match') || lowerCmd.includes('live');
+    const isNewsQuery = lowerCmd.includes('news') || lowerCmd.includes('headlines');
 
-    if (!isWeatherQuery && (lowerCmd.match(/what.*time/) || lowerCmd.includes('current time'))) {
-      return this.randomResponse([
-        `It is ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true })}.`,
-        `Right now it's ${new Date().toLocaleTimeString()}.`,
-        `My internal clock says ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric' })}.`,
-      ]);
-    }
-    if (!isWeatherQuery && (lowerCmd.match(/what.*date/) || lowerCmd.match(/what.*day/) || lowerCmd.includes('current date'))) {
-      return this.randomResponse([
-        `Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`,
-        `It's ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.`,
-      ]);
+    if (!isWeatherQuery && !isSportsQuery && !isNewsQuery) {
+      if (lowerCmd.match(/what.*time/) || lowerCmd.includes('current time')) {
+        return this.randomResponse([
+          `It is ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true })}.`,
+          `Right now it's ${new Date().toLocaleTimeString()}.`,
+          `My internal clock says ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: 'numeric' })}.`,
+        ]);
+      }
+      if (lowerCmd.match(/what.*date/) || lowerCmd.match(/what.*day/) || lowerCmd.includes('current date')) {
+        return this.randomResponse([
+          `Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`,
+          `It's ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.`,
+        ]);
+      }
     }
 
     // 🌤️ Weather handling (WeatherAPI.com Primary, OpenWeatherMap Fallback)
@@ -334,8 +337,7 @@ class CommandService {
           }
         }
       } catch (e) {
-        logger.warn('Cricket API failed:', e.message);
-        return "I couldn't reach the cricket servers right now.";
+        logger.warn('Cricket API failed. Will fallback to general AI search.', e.message);
       }
     }
 
@@ -353,35 +355,59 @@ class CommandService {
           }
         }
       } catch (e) {
-        logger.warn('Sports API failed:', e.message);
+        logger.warn('Sports API failed. Will fallback to general AI search.', e.message);
       }
     }
 
     // 📰 News Reader
     if (lowerCmd.includes('news') || lowerCmd.includes('headlines')) {
-      try {
-        const newsKey = process.env.NEWS_API_KEY;
-        if (!newsKey) {
-          return "I can fetch the news for you, but you need to add a NEWS_API_KEY in the backend environment variables. You can easily get a free one from GNews.io or NewsAPI.org.";
-        }
-        const countMatch = lowerCmd.match(/(\d+)\s+news/);
-        const newsCount = countMatch ? Math.min(parseInt(countMatch[1]), 10) : 3;
+      const countMatch = lowerCmd.match(/(\d+)\s+news/);
+      const newsCount = countMatch ? Math.min(parseInt(countMatch[1]), 10) : 3;
+      let newsFound = false;
+      let newsResponseText = "";
 
-        // Force sort by publishedAt to prevent grabbing heavily cached old articles 
-        // e.g., the historical 'Iran war' topic that defaults as relevant in local caches.
-        const url = `https://gnews.io/api/v4/top-headlines?category=general&lang=en&country=in&max=${newsCount}&sortby=publishedAt&apikey=${newsKey}`;
-        const res = await fetch(url);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.articles && data.articles.length > 0) {
-            const headlines = data.articles.map((a, i) => `${i + 1}. ${a.title}`).join('. ');
-            return `Here are the latest ${data.articles.length} news headlines right now: ${headlines}.`;
+      // 1. Primary News: GNews
+      try {
+        const gnewsKey = process.env.NEWS_API_KEY;
+        if (gnewsKey) {
+          const url = `https://gnews.io/api/v4/top-headlines?category=general&lang=en&country=in&max=${newsCount}&sortby=publishedAt&apikey=${gnewsKey}`;
+          const res = await fetch(url, { timeout: 6000 });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.articles && data.articles.length > 0) {
+              const headlines = data.articles.map((a, i) => `${i + 1}. ${a.title}`).join('. ');
+              newsResponseText = `Here are the latest ${data.articles.length} news headlines right now: ${headlines}.`;
+              newsFound = true;
+            }
           }
-          return "I couldn't find any recent news stories.";
         }
       } catch (e) {
-        logger.warn('News API failed:', e.message);
+        logger.warn('GNews API failed:', e.message);
       }
+
+      // 2. Fallback News: NewsAPI.org
+      if (!newsFound) {
+        try {
+          const newsApiOrgKey = "65724e5b14374ff6bafada1653619166"; // Specific key provided by user
+          const url = `https://newsapi.org/v2/top-headlines?country=us&pageSize=${newsCount}&apiKey=${newsApiOrgKey}`;
+          const res = await fetch(url, { headers: { 'User-Agent': 'AIVA-Assistant' }, timeout: 6000 });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.articles && data.articles.length > 0) {
+              const headlines = data.articles.map((a, i) => `${i + 1}. ${a.title}`).join('. ');
+              newsResponseText = `Here are the top ${data.articles.length} global headlines: ${headlines}.`;
+              newsFound = true;
+            }
+          }
+        } catch (e) {
+          logger.warn('NewsAPI.org fallback failed:', e.message);
+        }
+      }
+
+      if (newsFound) {
+        return newsResponseText;
+      }
+      logger.warn('All news APIs failed. Will fallback to general AI search.');
     }
 
     // (Moved LOCAL JSON handling higher up to guarantee 0ms latency for greetings)
@@ -466,25 +492,24 @@ Keep responses concise (2-4 sentences for simple queries, more for detailed ones
 
         let aiTextResponse = "";
 
-        // 1. Primary AI: Gemini 2.5 Flash
-        if (this.geminiAvailable) {
+        // Helper to call Gemini securely
+        const fetchGemini = async (sysContext = systemPrompt) => {
+          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+          const geminiHistory = this.chatHistory.map(m => ({
+            role: m.role === "assistant" ? "model" : "user",
+            parts: [{ text: m.content }]
+          }));
+
+          const payload = {
+            contents: [...geminiHistory, { role: "user", parts: [{ text: command }] }],
+            systemInstruction: { parts: [{ text: sysContext }] },
+            generationConfig: { maxOutputTokens: 600 }
+          };
+
+          const controller = new AbortController();
+          const fetchTimeout = setTimeout(() => controller.abort(), 12000);
+
           try {
-            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
-
-            const geminiHistory = this.chatHistory.map(m => ({
-              role: m.role === "assistant" ? "model" : "user",
-              parts: [{ text: m.content }]
-            }));
-
-            const payload = {
-              contents: [...geminiHistory, { role: "user", parts: [{ text: command }] }],
-              systemInstruction: { parts: [{ text: systemPrompt }] },
-              generationConfig: { maxOutputTokens: 600 }
-            };
-
-            const controller = new AbortController();
-            const fetchTimeout = setTimeout(() => controller.abort(), 12000);
-
             const gRes = await fetch(geminiUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -496,35 +521,82 @@ Keep responses concise (2-4 sentences for simple queries, more for detailed ones
             if (gRes.ok) {
               const gData = await gRes.json();
               if (gData.candidates && gData.candidates[0].content && gData.candidates[0].content.parts[0].text) {
-                aiTextResponse = gData.candidates[0].content.parts[0].text;
+                return gData.candidates[0].content.parts[0].text;
               }
             } else if (gRes.status === 429) {
-              logger.warn("Gemini limit exceeded. Retrying once after 10 seconds...");
-              await new Promise(resolve => setTimeout(resolve, 10000));
-
-              const retryCtrl = new AbortController();
-              const retryTimeout = setTimeout(() => retryCtrl.abort(), 12000);
-              const retryRes = await fetch(geminiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-                signal: retryCtrl.signal
-              });
-              clearTimeout(retryTimeout);
-
+              logger.warn("Gemini limit exceeded. Retrying...");
+              await new Promise(resolve => setTimeout(resolve, 8000));
+              const retryRes = await fetch(geminiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
               if (retryRes.ok) {
                 const retryData = await retryRes.json();
                 if (retryData.candidates && retryData.candidates[0].content && retryData.candidates[0].content.parts[0].text) {
-                  aiTextResponse = retryData.candidates[0].content.parts[0].text;
+                  return retryData.candidates[0].content.parts[0].text;
                 }
-              } else {
-                logger.warn("Gemini limit persisted. Fast-switching to Groq fallback.");
               }
-            } else {
-              logger.warn(`Gemini API Error: ${gRes.status}`);
             }
-          } catch (geminiErr) {
-            logger.warn("Gemini Fetch Error, falling back to Groq:", geminiErr.message);
+          } catch (e) {
+            logger.warn("Gemini Fetch Error:", e.message);
+          }
+          return "";
+        };
+
+        // 1. Primary AI: Gemini 2.5 Flash
+        if (this.geminiAvailable) {
+          aiTextResponse = await fetchGemini();
+
+          if (aiTextResponse) {
+            const lowerResp = aiTextResponse.toLowerCase();
+            const hitCutoff = lowerResp.includes('knowledge cutoff') ||
+              lowerResp.includes('real-time information') ||
+              lowerResp.includes('do not have access') ||
+              lowerResp.includes('as of my current information') ||
+              lowerResp.includes('i don\'t have') ||
+              lowerResp.includes('cannot find the specific result') ||
+              lowerResp.includes('don\'t have the specific') ||
+              lowerResp.includes('i do not have') ||
+              lowerResp.includes('i don\'t know');
+
+            if (hitCutoff) {
+              logger.info('Gemini hit a knowledge cutoff. Intercepting and triggering Web Search...');
+              aiTextResponse = ""; // Clear the failed response
+
+              // 3. Web Search API Fallback (Tavily)
+              if (process.env.TVLY_API_KEY) {
+                try {
+                  const tRes = await fetch("https://api.tavily.com/search", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ api_key: process.env.TVLY_API_KEY, query: command, search_depth: "basic" })
+                  });
+                  if (tRes.ok) {
+                    const tData = await tRes.json();
+                    if (tData.results && tData.results.length > 0) {
+                      webContext = tData.results.map(r => r.content).join(" | ");
+                    }
+                  }
+                } catch (e) { logger.warn('Tavily lookup fail:', e.message); }
+              }
+
+              // 4. Web Search API Fallback (Google Custom Search)
+              if (!webContext && process.env.GOOGLE_SEARCH_API_KEY && process.env.GOOGLE_SEARCH_CX) {
+                try {
+                  const gUrl = `https://www.googleapis.com/customsearch/v1?key=${process.env.GOOGLE_SEARCH_API_KEY}&cx=${process.env.GOOGLE_SEARCH_CX}&q=${encodeURIComponent(command)}`;
+                  const res = await fetch(gUrl);
+                  if (res.ok) {
+                    const data = await res.json();
+                    if (data.items && data.items.length > 0) {
+                      webContext = data.items.map(i => i.snippet).join(" | ");
+                    }
+                  }
+                } catch (e) { logger.warn('Google lookup fail:', e.message); }
+              }
+
+              if (webContext) {
+                logger.info("Web context fetched! Rerunning Gemini...");
+                const updatedPrompt = systemPrompt + `\n\nLIVE INTERNET SEARCH RESULTS REGARDING USER QUERY:\n${webContext}\nUse the internet search results above to accurately answer the user's query.`;
+                aiTextResponse = await fetchGemini(updatedPrompt);
+              }
+            }
           }
         }
 
@@ -532,16 +604,58 @@ Keep responses concise (2-4 sentences for simple queries, more for detailed ones
         if (!aiTextResponse && this.openai) {
           logger.info('Using Groq fallback...');
           const messages = [
-            { role: "system", content: systemPrompt },
+            { role: "system", content: webContext ? systemPrompt + `\nLIVE INTERNET SEARCH:\n${webContext}` : systemPrompt },
             ...this.chatHistory,
             { role: "user", content: command }
           ];
-          const completion = await this.openai.chat.completions.create({
-            model: "llama-3.3-70b-versatile",
-            messages: messages,
-            max_tokens: 600,
-          });
-          aiTextResponse = completion.choices[0].message.content;
+          try {
+            const completion = await this.openai.chat.completions.create({
+              model: "llama-3.3-70b-versatile",
+              messages: messages,
+              max_tokens: 600,
+            });
+            aiTextResponse = completion.choices[0].message.content;
+          } catch (e) {
+            logger.warn('Groq Error, falling back to Web Search APIs:', e.message);
+          }
+        }
+
+        // 3. Web Search API Fallback (Tavily)
+        if (!aiTextResponse && process.env.TVLY_API_KEY) {
+          logger.info('Using Tavily fallback...');
+          try {
+            const tvlyApiKey = process.env.TVLY_API_KEY;
+            const tRes = await fetch("https://api.tavily.com/search", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ api_key: tvlyApiKey, query: command, search_depth: "advanced" })
+            });
+            if (tRes.ok) {
+              const tData = await tRes.json();
+              if (tData.results && tData.results.length > 0) {
+                aiTextResponse = `I found this information online via Tavily Search: ${tData.results[0].content}`;
+              }
+            }
+          } catch (e) {
+            logger.warn('Tavily API Error, falling back to Google Search:', e.message);
+          }
+        }
+
+        // 4. Web Search API Fallback (Google Custom Search Engine)
+        if (!aiTextResponse && process.env.GOOGLE_SEARCH_API_KEY && process.env.GOOGLE_SEARCH_CX) {
+          logger.info('Using Google Search fallback...');
+          try {
+            const gUrl = `https://www.googleapis.com/customsearch/v1?key=${process.env.GOOGLE_SEARCH_API_KEY}&cx=${process.env.GOOGLE_SEARCH_CX}&q=${encodeURIComponent(command)}`;
+            const res = await fetch(gUrl);
+            if (res.ok) {
+              const data = await res.json();
+              if (data.items && data.items.length > 0) {
+                aiTextResponse = `I found this on Google Search: ${data.items[0].snippet}`;
+              }
+            }
+          } catch (e) {
+            logger.warn('Google Search Error:', e.message);
+          }
         }
 
         if (aiTextResponse) {
@@ -553,8 +667,8 @@ Keep responses concise (2-4 sentences for simple queries, more for detailed ones
           }
           return aiTextResponse;
         } else {
-          logger.error('Groq failed to respond.');
-          return "I'm having trouble connecting to my cloud brain right now. Please try again later when traffic subsides.";
+          logger.error('All AI endpoints and Search fallbacks failed to respond.');
+          return "I'm having trouble connecting to my cloud brain and search engines right now. Please try again later when traffic subsides.";
         }
       } catch (err) {
         logger.error('AI Error:', err);

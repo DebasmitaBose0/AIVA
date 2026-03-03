@@ -55,7 +55,7 @@ export default function JarvisLoader({ onFinish }) {
     const drawMatrix = () => {
       ctx.fillStyle = "rgba(5, 8, 22, 0.06)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#00ffe720";
+      ctx.fillStyle = "#ec489920";
       ctx.font = `${fontSize}px monospace`;
 
       for (let i = 0; i < drops.length; i++) {
