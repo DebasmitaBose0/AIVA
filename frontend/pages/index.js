@@ -155,7 +155,10 @@ export default function Home() {
       setMissingLangs(missing);
 
       const pref = sorted.find(v =>
-        v.name.includes("Google US English") || v.name.includes("Microsoft Zira") || v.name.includes("Samantha")
+        v.lang.startsWith('bn') || // Priority to Bengali
+        v.name.includes("Google US English") ||
+        v.name.includes("Microsoft Zira") ||
+        v.name.includes("Samantha")
       ) || sorted[0];
       if (pref) setSelectedVoice(pref);
     };
@@ -238,8 +241,16 @@ export default function Home() {
     setStatus("System Online");
     const all = window.speechSynthesis.getVoices();
     if (all.length > 0 && !selectedVoice) setSelectedVoice(all[0]);
-    speakResponse("Hi! I am AIVA, made by Debasmita and Babin. How can I assist you?");
-    addMessage('bot', "Hi! I'm AIVA — your AI voice assistant. Tap the mic or try a suggestion below to get started.");
+
+    const isBengali = selectedVoice?.lang.startsWith('bn');
+    const greetingText = isBengali
+      ? "নমস্কার! আমি আইভা। আমি আপনাকে কীভাবে সাহায্য করতে পারি?"
+      : "Hi! I am AIVA, made by Debasmita and Babin. How can I assist you?";
+
+    speakResponse(greetingText);
+    addMessage('bot', isBengali
+      ? "নমস্কার! আমি আইভা — আপনার এআই ভয়েস অ্যাসিস্ট্যান্ট। শুরু করতে মাইকে ট্যাপ করুন বা নিচের পরামর্শগুলো দেখুন।"
+      : "Hi! I'm AIVA — your AI voice assistant. Tap the mic or try a suggestion below to get started.");
   };
 
   // Audio
@@ -487,10 +498,10 @@ export default function Home() {
   ];
 
   const suggestions = [
-    { icon: Clock, label: "What time is it?", cmd: "What is the time?" },
-    { icon: Laugh, label: "Tell me a joke", cmd: "Tell me a joke" },
-    { icon: Globe, label: "Tell me a fun fact", cmd: "Tell me a fun fact" },
-    { icon: Mic, label: "Who are you?", cmd: "Who are you?" },
+    { icon: Clock, label: "সময় কত?", cmd: "What is the time?" }, // Bengali: What is the time?
+    { icon: Laugh, label: "একটি জোক বল", cmd: "Tell me a joke" }, // Bengali: Tell me a joke
+    { icon: Globe, label: "Aaj ki news?", cmd: "What is the news today?" }, // Hinglish news
+    { icon: Mic, label: "আপনি কে?", cmd: "Who are you?" }, // Bengali: Who are you?
   ];
 
   // Format basic markdown (bold and italic) and inject CSS Wave
