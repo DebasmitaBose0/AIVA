@@ -121,7 +121,7 @@ export default function JarvisLoader({ onFinish }) {
 
   // Glitch text effect
   useEffect(() => {
-    const glitchChars = "!@#$%^&*()_+-=[]{}|;':\",./<>?";
+    const glitchChars = "ABCDEF0123456789§¶†‡/\\<>[]{}|&^%$#@!+=-~?¿";
     const target = "A.I.V.A";
     let interval;
 
@@ -256,7 +256,7 @@ export default function JarvisLoader({ onFinish }) {
             <div className="scan-ring">
               <div className="scan-ring-inner" />
             </div>
-            <div className="glitch-title">{glitchText}</div>
+            <div className="glitch-title" data-text={glitchText}>{glitchText}</div>
             <p className="scan-label">ESTABLISHING NEURAL LINK...</p>
           </div>
         )}
@@ -266,7 +266,7 @@ export default function JarvisLoader({ onFinish }) {
             <div className="ready-icon-pulse">
               <Zap size={32} />
             </div>
-            <div className="ready-title">A.I.V.A</div>
+            <div className="ready-title glitch-title" data-text="A.I.V.A">A.I.V.A</div>
             <p className="ready-sub">PROTOCOL ACTIVE</p>
           </div>
         )}
