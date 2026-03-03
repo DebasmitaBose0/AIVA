@@ -250,7 +250,7 @@ export default function Home() {
     speakResponse(greetingText);
     addMessage('bot', isBengali
       ? "নমস্কার! আমি আইভা — আপনার এআই ভয়েস অ্যাসিস্ট্যান্ট। শুরু করতে মাইকে ট্যাপ করুন বা নিচের পরামর্শগুলো দেখুন।"
-      : "Hi! I'm AIVA — your AI voice assistant. Tap the mic or try a suggestion below to get started.");
+      : "Ready to assist you. Tap the mic below or pick a suggestion to start.");
   };
 
   // Audio
@@ -345,18 +345,21 @@ export default function Home() {
       return;
     }
 
-    // Client-side time
-    if (lower.match(/what.*time/) || lower.includes('current time') || lower.match(/time now/)) {
-      const t = new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: 'numeric', hour12: true });
-      const msg = `It is ${t}.`;
-      finishResponse(msg);
-      return;
-    }
-    // Client-side date
-    if (lower.match(/what.*date/) || lower.match(/what.*day/) || lower.includes('current date')) {
-      const d = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-      finishResponse(`Today is ${d}.`);
-      return;
+    // Client-side time/date (Guarded to not steal news/weather queries)
+    const isSpecial = lower.includes('news') || lower.includes('headlines') || lower.includes('weather') || lower.includes('cricket') || lower.includes('score') || lower.includes('match') || lower.includes('sport');
+
+    if (!isSpecial) {
+      if (lower.match(/what.*time/) || lower.includes('current time') || lower.match(/time now/)) {
+        const t = new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: 'numeric', hour12: true });
+        const msg = `It is ${t}.`;
+        finishResponse(msg);
+        return;
+      }
+      if (lower.match(/what.*date/) || lower.match(/what.*day/) || lower.includes('current date')) {
+        const d = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        finishResponse(`Today is ${d}.`);
+        return;
+      }
     }
 
     // Send to backend with strict 45s timeout to allow Groq fallback breathing room
@@ -455,12 +458,26 @@ export default function Home() {
     cleanedText = cleanedText.replace(/[\u{2700}-\u{27BF}]/gu, ''); // Dingbats
 
     const u = new SpeechSynthesisUtterance(cleanedText);
-    const v = voiceRef.current;
-    if (v) u.voice = v;
+
+    // Auto-detect language for better voice selection
+    const isBengali = /[\u0980-\u09FF]/.test(cleanedText);
+    const isHindi = /[\u0900-\u097F]/.test(cleanedText);
+
+    let targetVoice = voiceRef.current;
+
+    // If the text is Bengali/Hindi but the selected voice is English, find a matching voice
+    if ((isBengali || isHindi) && (!targetVoice || !targetVoice.lang.startsWith('bn') && !targetVoice.lang.startsWith('hi'))) {
+      const all = window.speechSynthesis.getVoices();
+      const langCode = isBengali ? 'bn' : 'hi';
+      targetVoice = all.find(v => v.lang.startsWith(langCode)) || targetVoice;
+    }
+
+    if (targetVoice) u.voice = targetVoice;
     else {
       const all = window.speechSynthesis.getVoices();
       if (all.length > 0) u.voice = all[0];
     }
+
     u.rate = 1.0; u.pitch = 1.0;
     window.speechSynthesis.speak(u);
   };
@@ -498,10 +515,10 @@ export default function Home() {
   ];
 
   const suggestions = [
-    { icon: Clock, label: "সময় কত?", cmd: "What is the time?" }, // Bengali: What is the time?
-    { icon: Laugh, label: "একটি জোক বল", cmd: "Tell me a joke" }, // Bengali: Tell me a joke
-    { icon: Globe, label: "Aaj ki news?", cmd: "What is the news today?" }, // Hinglish news
-    { icon: Mic, label: "আপনি কে?", cmd: "Who are you?" }, // Bengali: Who are you?
+    { icon: Clock, label: "What is the time?", cmd: "What is the time?" },
+    { icon: Laugh, label: "Tell me a joke", cmd: "Tell me a joke" },
+    { icon: Globe, label: "What is the news today?", cmd: "What is the news today?" },
+    { icon: Mic, label: "Who are you?", cmd: "Who are you?" },
   ];
 
   // Format basic markdown (bold and italic) and inject CSS Wave
