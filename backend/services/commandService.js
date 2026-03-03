@@ -429,14 +429,7 @@ class CommandService {
 
 
     // 4. Fun / Easter Eggs
-    if (lowerCmd.includes('tell me a joke')) {
-      const jokes = [
-        "Why did the scarecrow win an award? Because he was outstanding in his field.",
-        "I told my computer I needed a break, and now it won't stop sending me Kit-Kats.",
-        "Why do programmers prefer dark mode? Because light attracts bugs."
-      ];
-      return jokes[Math.floor(Math.random() * jokes.length)];
-    }
+
     if (lowerCmd.includes('meaning of life')) {
       return "42.";
     }
