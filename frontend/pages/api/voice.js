@@ -23,8 +23,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'No command provided' });
     }
 
-    // Proxy URL can be overridden via env var for flexibility.
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+    // Priority route for LOCAL development to bypass Render cloud sleep resets!
+    const backendUrl = process.env.NODE_ENV === 'development'
+      ? 'http://localhost:5000'
+      : (process.env.BACKEND_URL || 'http://localhost:5000');
+
     const fetchRes = await fetch(`${backendUrl}/api/voice`, {
       method: 'POST',
       headers: {

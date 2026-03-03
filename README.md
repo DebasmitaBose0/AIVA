@@ -15,20 +15,16 @@
 
 - 🗣️ **Voice command input** using Web Speech API (speech recognition)
 - 🔊 **Text-to-speech replies** with dynamic voices
-- 🌍 **Vast Multilingual Support** — Understands and speaks English, Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, and Urdu
-- 🎯 **Smart Voice Routing** — Automatically detects the language spoken/written and seamlessly swaps out the Text-to-Speech accent to match the native region
+- 🌍 **Multilingual greetings** — Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi & English
+- 🎯 **Smart voice selection** — voices grouped by language with Indian accent prioritization
 - 🌦️ **Enhanced weather lookup** with OpenWeatherMap & WeatherAPI fallback
 - 🏏 **Live Sports Scores** — CricketData & API-Football integration
 - 📰 **Headlines Delivery** via GNews API
-- 💻 **Native OS Control (Windows)** — Command AIVA to mute volume, lock screen, sleep PC, or empty the recycle bin
-- 📧 **Smart Email Drafting** — Tell AIVA to draft an email; it generates the content and opens your mail client ready to send
 - ⌨️ **Dynamic Input Modes** — Switch between Voice Mode and Text/Type Mode by speaking (e.g., "enable type mode")
-- 💬 **Chat-centric UI** — mic embedded in input bar, suggestion chips, timestamps, individual message copy, clear chat
+- 💬 **Chat-centric UI** — mic embedded in input bar, suggestion chips, timestamps, copy/clear
 - 🔒 **Secure API** via `x-api-key` header (bypassed in dev mode)
 - 🎨 **Futuristic theme** — glassmorphism, neon glows, hacker-style boot loader
-- 🧠 **Dual-Engine AI** — Gemini 2.5 Flash (Primary) falling back to Llama 3.3 70B via Groq
-- 🗃️ **Offline Greeting Lexicon** — Caches small-talk responses to intelligently save quota limits
-- 🎭 **Facial Mood Recognition** — Analyze your face via camera to adjust AIVA's personality (Powered by Gemini Vision)
+- 🧠 **Dual AI Engine** — Gemini 2.5 Flash (Primary) + Llama 3.3 70B (Fallback)
 - 🎭 **Lucide Icons** — professional icon set throughout the UI
 
 ---
@@ -40,9 +36,9 @@
 1. 📂 Navigate to `backend/` directory
 2. 📦 Install dependencies: `npm install`
 3. ⚙️ Configure `.env`:
-
    ```env
    PORT=5000
+   GEMINI_API_KEY=your_gemini_key
    GROQ_API_KEY=your_groq_api_key_here
    OPENWEATHER_API_KEY=your_openweather_key
    WEATHER_API_KEY=your_weatherapi_key
@@ -50,7 +46,6 @@
    SPORTS_API_KEY=your_sports_key
    NEWS_API_KEY=your_gnews_key
    ```
-
 4. ▶️ Run: `node server.js`
 
 ### 🖥️ Frontend
@@ -59,23 +54,6 @@
 2. 📦 Install dependencies: `npm install`
 3. ▶️ Run: `npm run dev`
 4. 🌐 Open <http://localhost:3000> in your browser
-
----
-
-## 🌍 Deployment
-
-### 🔙 Backend (Express)
-1.  **Platform:** [Render](https://render.com/) or Railway.
-2.  **Build Command:** `npm install`
-3.  **Start Command:** `npm start`
-4.  **Environment Variables:** Add all `.env` keys in the dashboard.
-    - **`API_KEY`**: Set your custom AIVA security password here.
-
-### 🖥️ Frontend (Next.js)
-1.  **Platform:** [Vercel](https://vercel.com/) (Recommended).
-2.  **Environment Variables:**
-    - **`NEXT_PUBLIC_API_KEY`**: Set the EXACT same password you used in the Backend (`API_KEY`).
-    - **`BACKEND_URL`**: The URL provided by Render (e.g., `https://your-aiva-backend.onrender.com`).
 
 ---
 
@@ -99,9 +77,9 @@
 | Layer | Technology |
 |-------|-----------|
 | 🖥️ Frontend | Next.js 14, React 18, Lucide Icons |
-| 🔙 Backend | Express.js, Node Fetch, Offline Lexicon Routing |
-| 🧠 AI Model | Gemini 2.5 Flash (Primary) / Llama 3.3 70B (Secondary) |
-| 🌐 APIs | Groq, Gemini Vision, OpenWeather, GNews |
+| 🔙 Backend | Express.js, OpenAI SDK (Groq) |
+| 🧠 AI Model | Gemini 2.5 Flash & Llama 3.3 70B |
+| 🌐 APIs | Gemini, Groq, wttr.in, Open-Meteo, DuckDuckGo, Wikipedia |
 | 🗣️ Speech | Web Speech API (Recognition + Synthesis) |
 | 🔤 Fonts | Chakra Petch, Space Grotesk, Orbitron, JetBrains Mono |
 
@@ -113,4 +91,29 @@
 
 ---
 
-*💜 Built for practice and contribution to projects by **Debasmita Bose and Babin Bid***
+## 📜 License
+
+This project is licensed under the [MIT License](LICENSE) - see the [LICENSE](LICENSE) file for details.
+
+---
+
+<p align="center">
+  <b>Developed with ❤️ for the future of Voice AI</b><br>
+  <i>AIVA is a continuous exploration into building responsive, smart, and accessible voice interfaces.</i>
+</p>
+
+<br>
+
+<div align="center">
+
+### 👩‍💻 Debasmita Bose
+[![GitHub](https://img.shields.io/badge/GitHub-Profile-181717?style=flat&logo=github)](https://github.com/DebasmitaBose0)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?style=flat&logo=linkedin)](https://www.linkedin.com/in/debasmita-bose2023/)
+[![Email](https://img.shields.io/badge/Email-Contact-D14836?style=flat&logo=gmail)](mailto:dbose272@gmail.com)
+
+### 👨‍💻 Babin Bid
+[![GitHub](https://img.shields.io/badge/GitHub-Profile-181717?style=flat&logo=github)](https://github.com/KGFCH2)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?style=flat&logo=linkedin)](https://www.linkedin.com/in/babinbid123/)
+[![Email](https://img.shields.io/badge/Email-Contact-D14836?style=flat&logo=gmail)](mailto:babinbid05@gmail.com)
+
+</div>
