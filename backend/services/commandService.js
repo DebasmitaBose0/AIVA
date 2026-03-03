@@ -325,20 +325,39 @@ class CommandService {
 
     // 🏏 Live Cricket Scores (CricketData.org)
     if (lowerCmd.includes('cricket') && (lowerCmd.includes('score') || lowerCmd.includes('match') || lowerCmd.includes('live'))) {
+      const isLookingSpecific = lowerCmd.includes('world cup') || lowerCmd.includes('ipl') || lowerCmd.includes('trophy') || lowerCmd.includes('upcoming');
       const myCricketKey = process.env.CRICKET_API_KEY || '89e10f96-68cc-437a-bdd3-f8124614959a';
+
       try {
         const url = `https://api.cricapi.com/v1/currentMatches?apikey=${myCricketKey}&offset=0`;
         const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
           if (data.data && data.data.length > 0) {
-            const match = data.data.find(m => m.matchStarted) || data.data[0];
-            return `In cricket, ${match.name}. The status is: ${match.status}.`;
+            // Filter matches if a specific tournament is mentioned
+            let match = data.data.find(m => {
+              const mName = m.name.toLowerCase();
+              if (lowerCmd.includes('world cup') && mName.includes('world cup')) return true;
+              if (lowerCmd.includes('ipl') && mName.includes('ipl')) return true;
+              return false;
+            });
+
+            // If no specific match found and the user ISN'T looking for something specific/upcoming, 
+            // only then return a general live match.
+            if (!match && !isLookingSpecific) {
+              match = data.data.find(m => m.matchStarted) || data.data[0];
+            }
+
+            if (match) {
+              return `In cricket, ${match.name}. The status is: ${match.status}.`;
+            }
           }
         }
       } catch (e) {
         logger.warn('Cricket API failed. Will fallback to general AI search.', e.message);
       }
+      // If we reach here, it means we didn't find the specific match requested. 
+      // We fall through to the AI/Web Search which is much smarter at finding upcoming schedules.
     }
 
     // ⚽ Live Live Sports / Football Scores (api-football)
@@ -480,6 +499,9 @@ Be polite, upbeat, and ask follow-up questions when it makes sense.
 Make the user feel like they're talking to a helpful friend.
 Feel free to use markdown formatting like **bold** and *italic* to emphasize important words or names.
 Do not repeat the user's input.
+You are a universal assistant for Indian users. You must understand queries in Romanized/transliterated scripts (e.g., Bengali written in Hindi script or Bengali/Hindi written in English alphabets like "Kemon acho" or "Kya kar rahe ho").
+Important: When a user writes Bengali phonetically using Hindi or English characters, interpret it accurately as conversational Bengali. Do NOT hallucinate that these are 'Bengali rhymes' unless explicitly stated. For example, "Tumi ke" means "Who are you," not a fragment of a poem.
+Respond in the SAME language/script the user is using unless they ask for a translation. If they speak Bengali, respond in Bengali. If they speak Hinglish, respond in Hinglish.
 Be accurate, context-aware, and show a bit of wit or charm when appropriate.
 Keep responses concise (2-4 sentences for simple queries, more for detailed ones).`;
 

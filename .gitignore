@@ -54,6 +54,3 @@ build/
 # === Misc ===
 *.tsbuildinfo
 next-env.d.ts
-
-# === Hidden Documentation ===
-FREE_APIS.md

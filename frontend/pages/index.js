@@ -443,7 +443,7 @@ export default function Home() {
     window.speechSynthesis.cancel();
 
     let cleanedText = text.replace(/[*#_`~[\]=+\-]/g, '').trim();
-    cleanedText = cleanedText.replace(/[\u{1F600}-\u{27BF}]/gu, '');
+    cleanedText = cleanedText.replace(/[\u{2600}-\u{27BF}]|[\u{1F300}-\u{1F9FF}]/gu, '');
 
     const u = new SpeechSynthesisUtterance(cleanedText);
     const isBengali = /[\u0980-\u09FF]/.test(cleanedText);
