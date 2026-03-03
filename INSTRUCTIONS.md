@@ -57,12 +57,13 @@ AIVA uses multiple APIs working together. Each serves a specific role:
 |-----|---------|---------|
 | `NEWS_API_KEY` | [GNews.io](https://gnews.io/) | Fetches the latest news headlines when you ask for news. Returns top 5 headlines with titles. |
 
-### 🌐 Web Search (No API Key Needed)
+### 🌐 Web Search APIs (Tertiary/Quaternary Fallbacks)
 
-| Service | Purpose |
-|---------|---------|
-| DuckDuckGo HTML Scraping | **No API key required.** AIVA automatically scrapes DuckDuckGo search results and feeds up to 5 live web snippets directly into the AI's brain (RAG). This enables AIVA to answer about ANY current event (2024, 2025, 2026, and beyond) without being limited by the LLM's training data. |
-
+| Key | Service | Purpose |
+|-----|---------|---------|
+| `TVLY_API_KEY` | [Tavily AI](https://tavily.com) | **Tertiary Fallback:** Optimized to return highly clean, block-text summaries of web content specifically built for AI context injection. |
+| `GOOGLE_SEARCH_API_KEY` | [Google Custom Search](https://developers.google.com/custom-search/) | **Quaternary Fallback:** The final, bulletproof search layer pinging directly off Google's custom search JSON API for global-scale indexing. |
+| `GOOGLE_SEARCH_CX` | [Programmable Search Engine](https://programmablesearchengine.google.com/) | Paired with the Google Search API key. |
 ---
 
 ## 📂 File Architecture & Working Principles
@@ -163,6 +164,11 @@ SPORTS_API_KEY=your_api_football_key_here
 
 # News (REQUIRED for news commands)
 NEWS_API_KEY=your_gnews_key_here
+
+# Web Search / RAG Engine (Fallback layers)
+TVLY_API_KEY=your_tavily_key_here
+GOOGLE_SEARCH_API_KEY=your_google_key_here
+GOOGLE_SEARCH_CX=your_cx_engine_id_here
 ```
 
 ### 3️⃣ Start the System
@@ -221,11 +227,12 @@ User speaks or types a command
 └────────────────────────────────────────────────────┘
         │ (not a news query?)
         ▼
-┌─── AI + Live Web Search (RAG) ────────────────────┐
-│  1. Scrape DuckDuckGo for 5 live web snippets      │
-│  2. Inject snippets into Llama 3.3 system prompt   │
-│  3. AI synthesizes a natural, informed response     │
-│  → Handles ALL remaining queries with web context   │
+┌─── AI + Web Search Hierarchy (Ultimate Fallback) ───┐
+│  1. Gemini 2.5 Flash (Primary fast AI)             │
+│  2. Groq Llama 3.3 70B (Secondary AI backup)       │
+│  3. Tavily AI API (Tertiary web search fallback)   │
+│  4. Google CSE (Quaternary web search fallback)    │
+│  → Handles ALL remaining complex external queries   │
 └────────────────────────────────────────────────────┘
 ```
 
